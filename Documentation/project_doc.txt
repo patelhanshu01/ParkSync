@@ -1,0 +1,977 @@
+Smart Parking System — Full Product
+Documentation (SRS + Architecture + Flow + Diagrams)
+
+Executive Summary
+We are building a next-generation smart parking system (web + mobile app) that does more than showing nearby parking — it guarantees a parking spot, optimizes costs, reduces search time, and lowers emissions.
+What makes it unique?
+Capability
+Existing apps (Google Maps / SpotHero / Parkopedia)
+Our Platform
+Show parking spots
+✅
+✅
+Live spot availability via Computer Vision (CV)
+❌
+✅
+Guaranteed parking (queue + reassignment logic)
+❌
+✅
+No penalty for overstaying (auto billing instead)
+❌
+✅
+Second user compensation via wallet credits
+❌
+✅
+CO₂ impact scoring (g CO₂ + % savings)
+❌
+✅
+AR indoor navigation to the exact parking spot
+❌
+✅
+Marketplace — private individuals list their spot (Airbnb-style)
+❌
+✅
+Business Impact
+	•	Saves user time + money + emissions
+	•	Creates B2B monetization: subscriptions for mall/shopping center operators
+	•	Enables P2P revenue sharing (private spot owners earn money)
+	•	Data/analytics valuable for city planning & sustainability reports
+
+2) Problem & Goals
+Problem Statement:
+Urban drivers spend 7–14 minutes on average searching for parking. This wastes fuel, money, time, and produces CO₂ emissions.
+Current industry gaps:
+	•	No real-time spot availability
+	•	No guarantee of a spot even after reservation
+	•	No wallet compensation for inconvenience
+	•	No CO₂ scoring / eco optimization
+	•	No indoor AR guidance / layout visualization
+Primary Goals
+	•	Accurate search + live availability
+	•	Guaranteed parking spot using queue system + reassignment
+	•	Minimize circling time, fuel cost & CO₂ output
+	•	Support EV requirements (charger, kW, cost)
+	•	Allow reservations and payments (Card, Wallet, UPI)
+	•	Marketplace: list private driveways / commercial parking
+	•	Operator portal to manage lots, tariffs, spot layouts, and availability
+Non-Goals (future phases)
+	•	Automated barrier open via LPR (license plate recognition)
+	•	Dynamic surge pricing
+	•	Government contracts and smart city integrations
+
+3) Personas & Use Cases
+Personas
+Persona
+Needs / Pain Points
+Driver (ICE/EV)
+Wants cheapest/closest parking, guaranteed availability
+EV Owner
+Needs charging spots by connector type (CCS2, Type2, NACS, etc.)
+Queued User
+Wants spot reassignment or compensation if original spot unavailable
+Private Spot Owner
+Wants to earn money by renting unused driveway
+Parking Operator (Admin)
+Wants dashboard, pricing, layouts, analytics
+City / Campus Admin
+Wants traffic reduction + sustainability metrics
+Top Use Cases
+	•	Search “destination” → show minimum 10 results within 1.5–5 km
+	•	Rank by: Price | Distance | Availability | CO₂ savings
+	•	Select spot → reserve → pay → navigate via AR
+
+4) Functional Requirements
+4.1 Location & Search
+	•	Search via autocomplete (Google Maps / OSM Nominatim)
+	•	Minimum 10 results within 1.5–5 km
+	•	Sorting:
+	•	Cheapest → Most expensive
+	•	Nearest → Farthest
+	•	Lowest CO₂ → Highest CO₂
+	•	Toggle: "Only show available spots"
+4.2 Results & Filters
+Filters include:
+	•	Price slider
+	•	EV charging (connector / kW)
+	•	Covered parking / CCTV
+	•	Free parking
+	•	Accessibility bays
+	•	Height limits
+Badges include:
+	•	🟢 Green Choice (lowest CO₂)
+	•	💸 Cheapest
+	•	🚶 Closest
+	•	🔌 EV Compatible
+	•	⭐ Best Value Score
+4.3 Computer Vision (Live Availability)
+Data sources:
+	•	CCTV camera
+	•	Edge devices (ESP32 camera or PiCam)
+	•	Phone camera (user scanning)
+Output:
+	•	Spot occupancy (free / occupied / reserved)
+	•	Spot metadata (EV / accessible / regular)
+4.4 Reservation & Queue Guarantee
+	•	User reserves a spot
+	•	Queue manager places others in waitlist
+	•	If current user extends stay:
+	•	No penalty to them → auto billing
+	•	Queued user gets:
+	•	Nearest reassigned spot, OR
+	•	Wallet compensation
+4.5 Wallet Compensation
+	•	Credit stored & usable on next booking
+	•	No expiry
+4.6 Private Parking Marketplace
+	•	Homeowners or shop owners list spots
+	•	Users can book those like Airbnb
+
+5) Non-Functional Requirements
+Category
+Requirement
+Performance
+Search API < 400ms (cached), lot detail < 600ms
+Availability
+99.9% uptime (single region)
+Security
+OAuth2 + JWT + RBAC
+Privacy
+GDPR/CPRA compliant
+Payments
+PCI-DSS SAQ-A (tokenized)
+Observability
+OpenTelemetry, logs, distributed tracing
+
+6) System Architecture (Updated)
+[ Mobile / Web App ]
+        |
+      HTTPS + JWT
+        |
+   [ API Gateway ]
+        |
+ ┌─────────────────────────┬───────────────────────┬────────────────────────┐
+ |                         |                       |                        |
+[Search Service]   [Reservation + Queue]   [Wallet + Payment]       [Maps Adapter]
+      |                     |                       |                          |
+ [CO₂ Engine]          [Spot Reassign Logic]     [Stripe/Razorpay/UPI]   [Google/OSM]
+      |
+ [Emission Factor DB]
+
+[Computer Vision Service] <-- CCTV / ESP32 cameras / Drone feed
+
+[Postgres + PostGIS]  ← layouts, lots, spots, reservations
+[Redis Cache]         ← caching search, quotes
+
+7) Data Model (ERD Outline)
+Entities (highlights):
+	•	Reservation.spot_id, queue_position
+	•	Wallet(balance) for compensation
+	•	EmissionFactor(region, g_co2_per_km, g_co2_per_kwh)
+
+8) API (Draft)
+API
+Description
+POST /reservations
+Create reservation
+PUT /reservations/{id}/extend
+Extend reservation (auto billing)
+POST /queue/reassign
+Assign new spot for queued user
+POST /wallet/refund
+Compensation credit
+POST /co2/score
+Returns g CO₂ + % savings
+More APIs exist; full list in Section 8.
+
+9) Ranking & Scoring Logic
+BestValueScore =
+  w_price * normalized(price) +
+  w_distance * normalized(distance) +
+  w_availability * normalized(availability) +
+  w_co2 * normalized(co2) +
+  w_rating * normalized(rating)
+
+10) CO₂ Footprint Calculation
+ICE vehicle:
+CO₂ = (route_km + cruising_km) * emission_factor_g_per_km
+
+EV:
+CO₂ = (route_km * efficiency_kWh/km) * grid_intensity_g/kWh
+App shows:
+You saved 420g CO₂ vs normal street parking ✅
+
+11) Lot Layout & Spot Rendering (Per-spot visualization)
+Parking lots are represented as multi-level polygon layouts with spot objects.
+Features:
+	•	Floors (Level 1, Level 2…)
+	•	Aisles + zones
+	•	Spot polygons (GeoJSON)
+	•	Real-time status overlays (free/occupied/reserved/EV/etc.)
+	•	Tap to see metadata (spot size, restrictions, EV connector type)
+Spot colors:
+Color
+Meaning
+🟢 Green
+Available
+🔴 Red
+Occupied
+🔵 Blue
+Reserved
+🟦 Teal
+EV charging spot (live charging status)
+🟣 Purple
+Accessibility spot
+
+12) Integrations (Maps, EV networks, Payment, CV)
+Integration
+API Used
+Reason
+Google Maps Platform
+Geocoding, Directions, Distance Matrix, Static/JS Maps
+Search + navigation
+EV Networks
+OCPI/OCPP, OpenChargeMap, Hubject
+EV charger availability
+Payments
+UPI / Stripe / Razorpay / Paytm
+Secure payment + refunds
+Computer Vision
+Python (YOLOv8), OpenCV, ESP32 Cam / CCTV stream
+Spot occupancy detection
+Where needed, OpenStreetMap + MapLibre can be used to reduce Google API billing costs.
+
+13) Frontend (Modern GUI)
+Tech stack (web):
+	•	React + TypeScript
+	•	Tailwind + shadcn/ui components
+	•	Zustand / Redux Toolkit (state management)
+	•	React Query (data fetching)
+Design features:
+	•	PWA (works as app on mobile without install)
+	•	Dark/light mode
+	•	Responsive design
+	•	AR view overlay using WebAR (model-viewer + ARCore/ARKit)
+App views:
+Screen
+Key Elements
+Search
+Map + list results, filters
+Lot Detail
+EV chargers, CO₂ score, price estimate
+Layout View
+Level view + spot selection in real time
+Checkout
+Payment + wallet + UPI
+AR Navigation
+Arrow overlay guiding user to the exact spot
+
+14) Backend & Data Infrastructure
+Component
+Tech
+Backend API
+Python (FastAPI) or Node.js (NestJS)
+DB
+PostgreSQL + PostGIS (spatial data)
+Cache
+Redis (search caching + pre-scored results)
+Message brokers
+Kafka / NATS (queue & CV events)
+Storage
+S3 bucket (blueprints & images)
+Realtime
+WebSockets / SSE for live layout updates
+Database stores:
+	•	Parking lots and layouts as GeoJSON
+	•	Individual spots (bounding polygon)
+	•	Reservation and wallet transactions
+
+15) IoT (Computer Vision Spot Detection)
+Hardware optional (lots without cameras can manually update spot status).
+Supported CV inputs:
+	•	CCTV live stream → YOLOv8 detecting occupied spots
+	•	ESP32 Cam (cheap IoT camera)
+	•	Drone feed (university/large event use case)
+
+16) Security, Privacy & Compliance
+Area
+Measure
+Authentication
+OAuth2.1 + OIDC + JWT
+Access control
+RBAC (User / Spot Owner / Operator / Admin)
+Transport
+TLS 1.3, HSTS, HTTPS only
+Data
+PII encrypted, wallet tokens encrypted
+Compliance
+GDPR/CPRA + PCI DSS SAQ-A
+Threat mitigation
+Rate limiting, WAF, Anti-DDoS, anomaly detection
+Privacy: No license plates stored; if CV is used, frames are processed edge-side and not stored.
+
+17) DevOps & SRE (Reliability)
+Category
+Selected Approach
+Infra
+Kubernetes (EKS/GKE/AKS)
+CI/CD
+GitHub Actions + automated Docker build
+IaC
+Terraform
+Monitoring
+OpenTelemetry + Prometheus + Grafana
+Logging
+ELK / CloudWatch
+On-call
+PagerDuty
+
+18) Analytics & Experimentation
+Key KPIs:
+	•	Search → reservation conversion rate
+	•	CO₂ saved per reservation (% vs average street parking)
+	•	Average wallet compensation amount
+	•	EV parking adoption rate
+A/B Testing examples:
+	•	Which filter increases conversion: "Cheapest" vs. "Lowest CO₂"?
+	•	Should CO₂ savings be shown in % or grams?
+
+19) Acceptance Criteria (MVP Completion)
+Requirement
+Must Pass?
+Search shows ≥ 10 results within 1.5–5 km
+✅
+User can reserve a spot and navigate via AR
+✅
+If spot unavailable → queued user receives reassignment or compensation
+✅
+EV filter shows only valid chargers
+✅
+CO₂ score displayed in results + detail screen
+✅
+
+20) Testing Strategy
+Testing Type
+Tools
+Unit tests
+PyTest / Jest
+API Tests
+Postman / Newman
+E2E UI
+Playwright / Cypress
+Load Test
+k6 / Gatling
+Security Scans
+Snyk + Trivy
+CV Model accuracy
+YOLO metrics (precision/recall)
+
+21) Roadmap (Phased Delivery)
+Phase
+Duration
+Deliverables
+Phase 0
+2–3 weeks
+CV PoC, initial DB + search
+Phase 1
+6–8 weeks
+MVP app + layout view + CO₂ + operator portal
+Phase 2
+4–6 weeks
+Wallet + queue system + AR guidance
+Phase 3
+8+ weeks
+Marketplace + CV IoT automation + smart contracts
+
+22) Risks & Mitigations
+Risk
+Mitigation
+Camera not reliably detecting spots
+Fallback: manual operator update
+Queued user frustration
+Wallet credit + reassignment option
+Google Maps API cost
+Cache + OpenStreetMap fallback
+
+23) Open Questions
+	•	Do we enable automated gate entry in v2?
+	•	Should wallet credits be transferable or redeemable for cash?
+
+24) Appendix
+CO₂ estimate example shown to user:
+"⭐ You saved 420g CO₂ vs. typical street parking"
+
+25) Glossary
+Term
+Definition
+CV
+Computer Vision
+CO₂ Score
+Estimated emissions for selected spot
+RBAC
+Role-based access control
+
+Top of Form
+
+Bottom of Form
+
+
+
+
+
+
+
+1. Project Overview
+The Smart Parking System is a next‑generation platform combining: - Computer Vision (AI detection of free/occupied parking spots) - Spot reservation with queue management - Auto billing on overtime (no penalties, only normal billing) - Wallet compensation if reassignment happens - Marketplace for private parking owners (Airbnb for parking) - AR navigation to guide the user to the specific spot Goal: Ensure the user always finds parking, even if their reserved spot becomes unavailable.
+
+2. Unique Selling Proposition (USP)
+Not just find parking, but guarantee a parking spot.
+	Feature	Exists Today?	Our System
+Find nearby parking
+✅
+✅
+Exact spot detection via AI (CCTV / Phone camera)
+❌
+✅
+Queue + automatic reassignment + wallet compensation
+❌
+✅
+Auto-billing when user overstays (no penalty)
+❌
+✅
+AR indoor parking guidance
+❌
+✅
+Private parking marketplace
+❌
+✅
+
+3. Actors
+	Actor	Role
+	User (Driver)	Search, reserve, pay, navigate
+	Actor	Role
+Admin (Parking Operator)
+Manage lots, layouts, availability
+Private Parking Owner
+Lists parking as marketplace spot
+Payment Gateway
+UPI/Card wallet billing
+Computer Vision Service
+Detects free/occupied spots
+Maps API / AR Service
+Guides user to exact location
+
+4. Functional Requirements
+4.0 Newly Added — CO₂ Footprint Optimization (Eco‑Smart Parking)
+The system automatically calculates and labels carbon footprint for each parking option and shows CO₂ savings (%) compared to the highest‑impact option on the list.
+Inputs: distance to parking, availability (circling), vehicle type (ICE/EV), regional CO₂ factors.
+Displayed to user: 
+Eco impact: 180g CO₂  |  Savings: 28% vs highest‑impact option
+320g CO₂  |  Savings: 12% vs highest‑impact option
+520g CO₂  |  Highest CO₂ (baseline)
+Calculation logic: -	 ICE: CO₂ = distance_km × emission_factor_g_per_km 	-	 EV: CO₂ = energy_kWh × grid_intensity_g_per_kWh 	-	 Savings	 	%	 	formula: savings_pct = (max_co2 - option_co2) / max_co2 × 100
+Sort option: Sort by Lowest CO₂
+Badges on result: Eco Choice — lowest emission option
+
+5. Non‑Functional Requirements
+Non-Functional Requirements - Search results: < 400ms - System uptime: 99.9% - Seat detection inference time: < 200ms - Database: PostgreSQL + PostGIS
+
+6. System Architecture (High Level)
+Mobile/Web App
+     │
+     ▼
+API Gateway 
+→
+ Auth Service (JWT)
+     │
+     ├──
+ Parking Search Service 
+→
+ DB (Parking Lots + Private Listings)
+     ├──
+ Reservation + Queue Manager 
+→
+ Wallet Service 
+→
+ Payment API
+     ├──
+ Computer Vision Service 
+→
+ Camera Feed / CCTV / Drone
+     └──
+ AR Navigation Service 
+→
+ Maps API
+Mobile/Web App
+     │
+     ▼
+API Gateway 
+→
+ Auth Service (JWT)
+     │
+     ├──
+ Parking Search Service 
+→
+ DB (Parking Lots + Private Listings)
+     ├──
+ Reservation + Queue Manager 
+→
+ Wallet Service 
+→
+ Payment API
+     ├──
+ Computer Vision Service 
+→
+ Camera Feed / CCTV / Drone
+     └──
+ AR Navigation Service 
+→
+ Maps API
+7. Queue Conflict Handling Logic (Final)
+If user A extends time:
+    charge user A based on new time
+    If alternate spot exists:
+        assign to user B
+    Else:
+        show popup with options (assign, wait, cancel)
+        If cancel:
+            refund(userB) 
+→
+ Wallet credits
+If user A extends time:
+    charge user A based on new time
+    If alternate spot exists:
+        assign to user B
+    Else:
+        show popup with options (assign, wait, cancel)
+        If cancel:
+            refund(userB) 
+→
+ Wallet credits
+8. Diagrams (Use Case + Flow + Sequence)
+Diagram style: Lucidchart (enterprise style). You can import these using Lucidchart’s PlantUML/Text import, or render via PlantUML and upload SVG/PNG into Lucidchart for collaboration.
+8.1 Use Case Diagram (with external systems)
+@startuml
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+actor "Driver / User" as User
+actor "Admin / Parking Operator" as Admin
+actor "Payment Gateway (UPI / Card / Wallet)" as Pay
+actor "Maps / AR Service" as Maps
+@startuml
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+actor "Driver / User" as User
+actor "Admin / Parking Operator" as Admin
+actor "Payment Gateway (UPI / Card / Wallet)" as Pay
+actor "Maps / AR Service" as Maps
+actor "Computer Vision Service" as CV actor "EV / Open Data Providers" as EV
+rectangle "Smart Parking System" {
+  ' Authentication first
+  (Login / Sign Up) as UC_Login
+  User --> UC_Login
+  Admin --> UC_Login
+  ' Discovery
+  (Search parking near destination) as UC_Search
+  (Apply filters: Price / Distance / EV / Free / Paid) as UC_Filter
+  (View lot details) as UC_Detail
+  (View layout & spot status) as UC_Layout
+  User --> UC_Search
+  User --> UC_Filter
+  User --> UC_Detail
+  User --> UC_Layout
+  CV --> UC_Layout
+  EV --> UC_Detail
+  ' Reservation / Queue / Wallet
+  (Select spot & Reserve) as UC_Reserve
+  (Join queue for spot) as UC_Queue
+  (Popup: Reassign / Keep Waiting / Wallet Refund) as UC_Popup
+  (Wallet credits) as UC_Wallet
+  User --> UC_Reserve
+  User --> UC_Queue
+  UC_Queue ..> UC_Popup : <<extends>>
+  UC_Popup ..> UC_Wallet : <<uses>>
+  ' Billing & Payment
+  (Auto-billing on overstay) as UC_Overstay
+  (Pay via UPI/Card/Wallet) as UC_Pay
+  User --> UC_Pay
+  Pay --> UC_Pay
+  User --> UC_Overstay
+  ' Navigation
+  (AR guidance to exact spot) as UC_AR
+  User --> UC_AR
+  Maps --> UC_AR
+  ' Admin portal
+  (Create/Edit lot & pricing) as UC_AdminLots
+  (Upload layout & classify spots) as UC_AdminLayout
+  (Update availability) as UC_AdminAvail
+  (View analytics dashboard) as UC_AdminAnalytics
+  Admin --> UC_AdminLots
+  Admin --> UC_AdminLayout
+  Admin --> UC_AdminAvail
+  Admin --> UC_AdminAnalytics
+}
+@enduml
+  Admin --> UC_AdminLots
+  Admin --> UC_AdminLayout
+  Admin --> UC_AdminAvail
+  Admin --> UC_AdminAnalytics
+}
+@enduml
+8.2 Sequence Diagram — Queue Conflict & Reassignment (Option B wording)
+@startuml
+actor UserB as "Queued User (B)"
+participant App as "Mobile/Web App"
+participant API as "Backend API"
+participant Queue as "Queue Manager"
+participant Lots as "Lot/Spot Service"
+participant Wallet as "Wallet Service"
+participant Pay as "Payment Gateway"
+participant UserA as "Current User (A)"
+==
+ A extends reservation 
+==
+UserA -> App : Extend time
+App -> API : PUT /reservations/{id}/extend
+API -> Pay : Charge extra (normal billing)
+Pay --> API : Success
+API --> App : Extension confirmed
+==
+ Notify queued user 
+==
+API -> Queue : Spot still occupied; notify next in queue
+Queue -> App : Push event (spot unavailable)
+App -> UserB : **Popup**
+[
+Reassign me] [Keep waiting] [Cancel & refund to wallet
+]
+alt UserB chooses "Reassign me"
+  App -> API : POST /queue/reassign {pref: nearest}
+  API -> Lots : Find nearest available spot
+  Lots --> API : Spot B18
+  API -> App : Assign Spot B18 + navigate
+end
+alt UserB chooses "Keep waiting"
+  App -> API : POST /queue/wait
+  API -> Queue : Keep position; ETA updates
+  Queue --> App : Live ETA events
+end
+alt UserB chooses "Cancel & refund to wallet"
+@startuml
+actor UserB as "Queued User (B)"
+participant App as "Mobile/Web App"
+participant API as "Backend API"
+participant Queue as "Queue Manager"
+participant Lots as "Lot/Spot Service"
+participant Wallet as "Wallet Service"
+participant Pay as "Payment Gateway"
+participant UserA as "Current User (A)"
+==
+ A extends reservation 
+==
+UserA -> App : Extend time
+App -> API : PUT /reservations/{id}/extend
+API -> Pay : Charge extra (normal billing)
+Pay --> API : Success
+API --> App : Extension confirmed
+==
+ Notify queued user 
+==
+API -> Queue : Spot still occupied; notify next in queue
+Queue -> App : Push event (spot unavailable)
+App -> UserB : **Popup**
+[
+Reassign me] [Keep waiting] [Cancel & refund to wallet
+]
+alt UserB chooses "Reassign me"
+  App -> API : POST /queue/reassign {pref: nearest}
+  API -> Lots : Find nearest available spot
+  Lots --> API : Spot B18
+  API -> App : Assign Spot B18 + navigate
+end
+alt UserB chooses "Keep waiting"
+  App -> API : POST /queue/wait
+  API -> Queue : Keep position; ETA updates
+  Queue --> App : Live ETA events
+end
+alt UserB chooses "Cancel & refund to wallet"
+  App -> API : POST /queue/cancel
+  API -> Wallet : credit(amount)
+  Wallet --> API : ok
+  API -> App : Wallet refund confirmed
+end
+@enduml
+  App -> API : POST /queue/cancel
+  API -> Wallet : credit(amount)
+  Wallet --> API : ok
+  API -> App : Wallet refund confirmed
+end
+@enduml
+8.3 Component / Architecture Diagram (High Level)
+@startuml
+skinparam componentStyle rectangle
+package "Clients" {
+  [iOS/Android PWA]
+  [Web App]
+}
+package "Edge / CV" {
+  [CCTV / PiCam / Drone]
+  [CV Inference Service]
+}
+package "Core Services" {
+  [API Gateway]
+  [Auth Service]
+  [Search Service]
+  [Lot & Layout Service]
+  [Reservation & Queue Manager]
+  [Wallet Service]
+  [Payment Adapter]
+  [AR/Maps Adapter]
+}
+package "Data Stores" {
+  [Postgres + PostGIS]
+  [Redis Cache]
+  [Object Storage (Layouts/Images)]
+}
+package "External Providers" {
+  [Payment Gateway]
+  [Maps / AR]
+  [EV / Open Data]
+}
+[
+iOS/Android PWA] --> [API Gateway
+]
+@startuml
+skinparam componentStyle rectangle
+package "Clients" {
+  [iOS/Android PWA]
+  [Web App]
+}
+package "Edge / CV" {
+  [CCTV / PiCam / Drone]
+  [CV Inference Service]
+}
+package "Core Services" {
+  [API Gateway]
+  [Auth Service]
+  [Search Service]
+  [Lot & Layout Service]
+  [Reservation & Queue Manager]
+  [Wallet Service]
+  [Payment Adapter]
+  [AR/Maps Adapter]
+}
+package "Data Stores" {
+  [Postgres + PostGIS]
+  [Redis Cache]
+  [Object Storage (Layouts/Images)]
+}
+package "External Providers" {
+  [Payment Gateway]
+  [Maps / AR]
+  [EV / Open Data]
+}
+[
+iOS/Android PWA] --> [API Gateway
+]
+[
+Web App] --> [API Gateway
+]
+[
+CCTV / PiCam / Drone] --> [CV Inference Service
+]
+[
+CV Inference Service] --> [Lot & Layout Service
+]
+[
+API Gateway] --> [Auth Service
+]
+[
+API Gateway] --> [Search Service
+]
+[
+API Gateway] --> [Reservation & Queue Manager
+]
+[
+API Gateway] --> [Lot & Layout Service
+]
+[
+API Gateway] --> [Wallet Service
+]
+[
+API Gateway] --> [Payment Adapter
+]
+[
+API Gateway] --> [AR/Maps Adapter
+]
+[
+Search Service] --> [Postgres + PostGIS
+]
+[
+Lot & Layout Service] --> [Postgres + PostGIS
+]
+[
+Reservation & Queue Manager] --> [Postgres + PostGIS
+]
+[
+Wallet Service] --> [Postgres + PostGIS
+]
+[
+All components] --> [Redis Cache
+]
+[
+Payment Adapter] --> [Payment Gateway
+]
+[
+AR/Maps Adapter] --> [Maps / AR
+]
+[
+Lot & Layout Service] --> [Object Storage (Layouts/Images
+)]
+[
+Lot & Layout Service] --> [EV / Open Data
+]
+@enduml
+[
+Web App] --> [API Gateway
+]
+[
+CCTV / PiCam / Drone] --> [CV Inference Service
+]
+[
+CV Inference Service] --> [Lot & Layout Service
+]
+[
+API Gateway] --> [Auth Service
+]
+[
+API Gateway] --> [Search Service
+]
+[
+API Gateway] --> [Reservation & Queue Manager
+]
+[
+API Gateway] --> [Lot & Layout Service
+]
+[
+API Gateway] --> [Wallet Service
+]
+[
+API Gateway] --> [Payment Adapter
+]
+[
+API Gateway] --> [AR/Maps Adapter
+]
+[
+Search Service] --> [Postgres + PostGIS
+]
+[
+Lot & Layout Service] --> [Postgres + PostGIS
+]
+[
+Reservation & Queue Manager] --> [Postgres + PostGIS
+]
+[
+Wallet Service] --> [Postgres + PostGIS
+]
+[
+All components] --> [Redis Cache
+]
+[
+Payment Adapter] --> [Payment Gateway
+]
+[
+AR/Maps Adapter] --> [Maps / AR
+]
+[
+Lot & Layout Service] --> [Object Storage (Layouts/Images
+)]
+[
+Lot & Layout Service] --> [EV / Open Data
+]
+@enduml
+8.4 Lucidchart Layout & Export Guidelines
+	•	Canvas: 16:9, dark header, light content sections. Fonts: Inter or Roboto.
+	•	Swimlanes: Left actors (Users/Operators), center system, right external systems (Payments/Maps/ CV).
+	•	Colors:
+	•	Primary: #15B77E (actions, primary use cases)
+	•	Secondary: #1A73E8 (external systems / integrations)
+	•	Accent: #FFCC00 (warnings / queue popups)
+	•	Connectors: Straight lines with arrowheads; label extension relationships as extends/uses.
+	•	Import paths: 1) File  Import Data  UML (PlantUML/Text)	 and paste blocks; or 2) Render via https:// www.plantuml.com/plantuml/uml 	Export SVG	Insert into Lucidchart.
+	•	Export: Share as PNG @2x for docs and PDF for PPT.
+
+9. Wallet Rules
+	•	Credits never expire
+	•	Compensation amount decided by severity
+
+10. Marketplace (Private Parking Owners)
+	•	User can rent out driveway/parking
+	•	Revenue sharing model: 90% owner / 10% platform
+
+11. UI/UX Requirements
+	•	Clean modern UI (Tailwind + React / Flutter)
+	•	AR overlay must be simplified for low-light parking areas
+
+12. Deliverables
+	Deliverable	Owner	Status
+System Architecture Diagram
+Architect
+Pending
+Use Case Diagram (PNG)
+Product/UX
+Completed
+ERD Diagram (PNG)
+Backend/DB
+Completed
+PPT (diagrams embedded)
+Product/PM
+Completed
+UI Wireframes
+UX Designer
+Pending
+
+13. Embedded Diagrams
+These images are exported assets; download links are available in the chat, and previews are embedded below.
+13.1 Use Case Diagram (v3 — with CO₂ engine)
+Use Case Diagram v3
+13.2 ERD Diagram (v4 — with EmissionFactors)
+ERD Diagram v4 (v3 — updated with CO₂ emissions)
+ERD updated to include 
+EmissionFactors
+ table and 
+co2_estimated_g
+ in 
+Reservation
+. 
+ERD Diagram v3
+ERD updated to include 
+EmissionFactors
+ table and 
+co2_estimated_g
+ in 
+Reservation
+. 
+ERD Diagram v3
+End of Document
+
+Hierarchy diagram
+
+
+
+
+
+
+
+Mind Diagram
+
+
+
+
+
+UI navigation diagram user
+
+Ui navigation diagram admin
+
+
