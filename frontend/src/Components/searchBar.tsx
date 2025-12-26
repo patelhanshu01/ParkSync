@@ -78,7 +78,17 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onSearch }) => {
         <Box sx={{ position: 'relative', width: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', px: 2 }}>
                 <InputBase
-                    sx={{ ml: 1, flex: 1, height: 56, fontSize: '1rem' }}
+                    sx={{
+                        ml: 1,
+                        flex: 1,
+                        height: 56,
+                        fontSize: '1rem',
+                        color: '#ffffff',
+                        '& ::placeholder': {
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            opacity: 1
+                        }
+                    }}
                     placeholder="Search destinations or parking..."
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
@@ -88,7 +98,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onSearch }) => {
                         setTimeout(() => setShowSuggestions(false), 300);
                     }}
                 />
-                <IconButton type="button" sx={{ p: '10px' }} aria-label="search" onClick={onSearch}>
+                <IconButton type="button" sx={{ p: '10px', color: '#00d4aa' }} aria-label="search" onClick={onSearch}>
                     <SearchIcon />
                 </IconButton>
             </Box>

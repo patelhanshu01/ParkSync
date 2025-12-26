@@ -203,7 +203,7 @@ const renderSpot = (spot: ParkingSpot, onClick: (spot: ParkingSpot) => void, sel
     return (
         <div
             key={spot.id}
-            onClick={() => (isAvailable || spot.status === 'reserved') && onClick(spot)}
+            onClick={() => isAvailable && onClick(spot)}
             style={{
                 width: '65px',
                 height: '85px',
@@ -215,7 +215,7 @@ const renderSpot = (spot: ParkingSpot, onClick: (spot: ParkingSpot) => void, sel
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative',
-                cursor: isAvailable ? 'pointer' : 'default',
+                cursor: isAvailable ? 'pointer' : (spot.status === 'reserved' ? 'not-allowed' : 'default'),
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 boxShadow: isSelected ? '0 0 25px rgba(0, 245, 255, 0.3), inset 0 0 10px rgba(0, 245, 255, 0.1)' : 'none',
                 opacity: isAvailable || isSelected ? 1 : 0.6,

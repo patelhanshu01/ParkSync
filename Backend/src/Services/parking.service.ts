@@ -15,6 +15,9 @@ export class ParkingService {
       await this.attachNextReservations(lots);
     }
 
+    // Calculate CO2 emissions and savings
+    this.calculateAndUpdateCO2ForLots(lots);
+
     return lots;
   }
 
@@ -185,6 +188,9 @@ export class ParkingService {
         await this.attachNextReservations(results);
       }
 
+      // Calculate CO2 emissions and savings
+      this.calculateAndUpdateCO2ForLots(results);
+
       return { results, searchMetadata: { lat, lng } };
 
     } catch (error) {
@@ -280,6 +286,9 @@ export class ParkingService {
         await this.attachNextReservations(results);
       }
 
+      // Calculate CO2 emissions and savings
+      this.calculateAndUpdateCO2ForLots(results);
+
       return { results, searchMetadata };
 
     } catch (error) {
@@ -357,5 +366,43 @@ export class ParkingService {
     }
 
     return 1;
+  }
+
+  /**
+   * Calculate CO2 emissions for all parking lots based on distance
+   * Uses a realistic emission factor of 250g CO2/km for average ICE vehicles
+   * Also calculates savings percentage and identifies the eco-friendliest option
+   */
+  private calculateAndUpdateCO2ForLots(lots: ParkingLot[]): void {
+    if (lots.length === 0) return;
+
+    const EMISSION_FACTOR_G_PER_KM = 250; // Average ICE vehicle
+    const AVG_CIRCLING_KM = 0.5; // Average distance spent circling to find parking
+
+    // Calculate CO2 for each lot based on distance
+    lots.forEach(lot => {
+      if (lot.distance_km !== undefined && lot.distance_km !== null) {
+        // CO2 = (distance + circling) * emission_factor
+        lot.co2_estimated_g = Math.round((lot.distance_km + AVG_CIRCLING_KM) * EMISSION_FACTOR_G_PER_KM);
+      } else {
+        // If no distance, use a default moderate value
+        lot.co2_estimated_g = 300;
+      }
+    });
+
+    // Find min and max CO2 values
+    const co2Values = lots.map(lot => lot.co2_estimated_g);
+    const maxCO2 = Math.max(...co2Values);
+    const minCO2 = Math.min(...co2Values);
+
+    // Calculate savings percentage and mark the lowest CO2 option
+    lots.forEach(lot => {
+      if (maxCO2 > 0) {
+        lot.co2_savings_pct = Math.round(((maxCO2 - lot.co2_estimated_g) / maxCO2) * 100);
+      } else {
+        lot.co2_savings_pct = 0;
+      }
+      lot.is_lowest_co2 = lot.co2_estimated_g === minCO2;
+    });
   }
 }

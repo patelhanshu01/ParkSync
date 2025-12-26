@@ -3,6 +3,24 @@ import { ParkingService } from '../Services/parking.service';
 
 const service = new ParkingService();
 
+/**
+ * Transform parking lot data to include co2_impact nested object
+ * The frontend expects co2_impact: { estimated_g, savings_pct, is_lowest }
+ * but the database stores these as flat fields
+ */
+const transformParkingLotResponse = (lot: any) => {
+  const { co2_estimated_g, co2_savings_pct, is_lowest_co2, ...rest } = lot;
+
+  return {
+    ...rest,
+    co2_impact: {
+      estimated_g: co2_estimated_g || 0,
+      savings_pct: co2_savings_pct || 0,
+      is_lowest: is_lowest_co2 || false
+    }
+  };
+};
+
 export const getAllParking = async (req: Request, res: Response) => {
   const { lat, lng, radius, search, includeReservations } = req.query;
   const include = includeReservations === 'true' || includeReservations === '1';
@@ -26,24 +44,34 @@ export const getAllParking = async (req: Request, res: Response) => {
     responseData = { results: all };
   }
 
+  // Transform the results to include co2_impact nested object
+  if (responseData.results) {
+    responseData.results = responseData.results.map(transformParkingLotResponse);
+  }
+
   res.json(responseData);
 };
 
 export const getParkingById = async (req: Request, res: Response) => {
   const data = await service.getById(Number(req.params.id));
   if (!data) return res.status(404).json({ message: "Parking lot not found" });
-  res.json(data);
+
+  // Transform the response to include co2_impact nested object
+  const transformed = transformParkingLotResponse(data);
+  res.json(transformed);
 };
 
 export const createParking = async (req: Request, res: Response) => {
   const data = await service.create(req.body);
-  res.status(201).json(data);
+  const transformed = transformParkingLotResponse(data);
+  res.status(201).json(transformed);
 };
 
 export const updateParking = async (req: Request, res: Response) => {
   const data = await service.update(Number(req.params.id), req.body);
   if (!data) return res.status(404).json({ message: "Parking lot not found" });
-  res.json(data);
+  const transformed = transformParkingLotResponse(data);
+  res.json(transformed);
 };
 
 export const deleteParking = async (req: Request, res: Response) => {

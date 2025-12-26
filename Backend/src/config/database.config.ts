@@ -7,6 +7,7 @@ import { EVCharger } from '../Models/ev-charger.entity';
 import { ParkingSpot } from '../Models/parking-spot.entity';
 import { Wallet } from '../Models/wallet.entity';
 import { WalletTransaction } from '../Models/wallet-transaction.entity';
+import { Listing } from '../Models/listing.entity';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -20,6 +21,6 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'parkingwebsite_db',
   synchronize: true,
   logging: process.env.NODE_ENV === 'development',
-  entities: [ParkingLot, Payment, Reservation, User, EVCharger, ParkingSpot, Wallet, WalletTransaction],
+  entities: [ParkingLot, Payment, Reservation, User, EVCharger, ParkingSpot, Wallet, WalletTransaction, Listing],
   migrations: [__dirname + '/../migrations/*.js'], // Use .js for compiled files
 });

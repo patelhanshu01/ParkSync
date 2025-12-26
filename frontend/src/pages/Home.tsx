@@ -25,6 +25,8 @@ import { useAuth } from '../context/AuthContext';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import StorefrontIcon from '@mui/icons-material/Storefront';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 
 const mapContainerStyle = {
     width: '100%',
@@ -245,10 +247,10 @@ const Home: React.FC = () => {
                             flex: 1,
                             borderRadius: 4,
                             p: 0.5,
-                            bgcolor: 'rgba(255, 255, 255, 0.95)',
-                            backdropFilter: 'blur(8px)',
+                            bgcolor: 'rgba(26, 35, 50, 0.95)',
+                            backdropFilter: 'blur(12px)',
                             border: '1px solid',
-                            borderColor: 'divider'
+                            borderColor: 'rgba(255, 255, 255, 0.12)'
                         }}
                     >
                         <SearchBar
@@ -266,13 +268,41 @@ const Home: React.FC = () => {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            bgcolor: 'white',
-                            cursor: 'pointer'
+                            bgcolor: 'rgba(26, 35, 50, 0.95)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            cursor: 'pointer',
+                            '&:hover': {
+                                bgcolor: 'rgba(0, 212, 170, 0.15)',
+                                borderColor: 'primary.main'
+                            }
+                        }}
+                        onClick={() => navigate('/marketplace')}
+                    >
+                        <Tooltip title="Marketplace">
+                            <StorefrontIcon sx={{ color: '#00d4aa' }} />
+                        </Tooltip>
+                    </Paper>
+                    <Paper
+                        elevation={6}
+                        sx={{
+                            borderRadius: '50%',
+                            width: 50,
+                            height: 50,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: 'rgba(26, 35, 50, 0.95)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            cursor: 'pointer',
+                            '&:hover': {
+                                bgcolor: 'rgba(0, 212, 170, 0.15)',
+                                borderColor: 'primary.main'
+                            }
                         }}
                         onClick={() => navigate('/wallet')}
                     >
                         <Tooltip title="Wallet">
-                            <AccountBalanceWalletIcon color="action" />
+                            <AccountBalanceWalletIcon sx={{ color: '#00d4aa' }} />
                         </Tooltip>
                     </Paper>
                     <Paper
@@ -284,13 +314,18 @@ const Home: React.FC = () => {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            bgcolor: 'white',
-                            cursor: 'pointer'
+                            bgcolor: 'rgba(26, 35, 50, 0.95)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            cursor: 'pointer',
+                            '&:hover': {
+                                bgcolor: 'rgba(255, 71, 87, 0.15)',
+                                borderColor: 'error.main'
+                            }
                         }}
                         onClick={logout}
                     >
                         <Tooltip title="Logout">
-                            <LogoutIcon color="action" />
+                            <LogoutIcon sx={{ color: '#ff4757' }} />
                         </Tooltip>
                     </Paper>
                     <Paper
@@ -302,14 +337,42 @@ const Home: React.FC = () => {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            bgcolor: 'white',
-                            cursor: 'pointer'
+                            bgcolor: 'rgba(26, 35, 50, 0.95)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            cursor: 'pointer',
+                            '&:hover': {
+                                bgcolor: 'rgba(0, 212, 170, 0.15)',
+                                borderColor: 'primary.main'
+                            }
+                        }}
+                        onClick={() => navigate('/dashboard')}
+                    >
+                        <Tooltip title="Dashboard">
+                            <DashboardIcon sx={{ color: '#00d4aa' }} />
+                        </Tooltip>
+                    </Paper>
+                    <Paper
+                        elevation={6}
+                        sx={{
+                            borderRadius: '50%',
+                            width: 50,
+                            height: 50,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: 'rgba(26, 35, 50, 0.95)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            cursor: 'pointer',
+                            '&:hover': {
+                                bgcolor: 'rgba(0, 212, 170, 0.15)',
+                                borderColor: 'primary.main'
+                            }
                         }}
                         onClick={() => navigate('/my-bookings')}
                     >
                         <Tooltip title="My Bookings">
                             <Badge badgeContent={bookingCount} color="error">
-                                <ReceiptLongIcon color="action" />
+                                <ReceiptLongIcon sx={{ color: '#00d4aa' }} />
                             </Badge>
                         </Tooltip>
                     </Paper>

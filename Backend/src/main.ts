@@ -9,8 +9,10 @@ import paymentRoutes from './Routes/payment.route';
 import reservationRoutes from './Routes/reservation.route';
 import userRoutes from './Routes/user.route';
 import co2Routes from './Routes/co2.route';
+import listingRoutes from './Routes/listing.route';
 // queue feature removed - routes cleaned up
 import walletRoutes from './Routes/wallet.route';
+import { seedMarketplace } from './seed';
 
 const app = express();
 
@@ -51,6 +53,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/reservation', reservationRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/co2', co2Routes);
+app.use('/api/listings', listingRoutes);
 // queue feature removed - no queue routes mounted
 app.use('/api/wallet', walletRoutes);
 
@@ -74,6 +77,7 @@ const PORT = process.env.PORT || 3000;
 AppDataSource.initialize()
   .then(() => {
     console.log('✅ Database connected successfully!');
+    seedMarketplace().catch(err => console.error('Seeding error:', err));
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
