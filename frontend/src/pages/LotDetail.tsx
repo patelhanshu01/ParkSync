@@ -6,6 +6,7 @@ import {
     Button,
     Card,
     CardContent,
+    CardMedia,
     Typography,
     Chip,
     Slider,
@@ -13,12 +14,12 @@ import {
     Alert,
     Paper,
     TextField,
+    Divider
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ParkingLot, ParkingSpot } from '../types/Parking';
 import { getParkingLotById } from '../api/parkingApi';
 import SpotVisualization from '../Components/SpotVisualization';
-import ParkingLot3D from '../Components/3d/ParkingLot3D';
 import EcoBadge from '../Components/badges/EcoBadge';
 import FeatureBadge from '../Components/badges/FeatureBadge';
 
@@ -37,7 +38,6 @@ const LotDetail: React.FC = () => {
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         return now.toISOString().slice(0, 16);
     });
-    const [view3D, setView3D] = useState(false);
 
     useEffect(() => {
         const fetchLot = async () => {
@@ -119,7 +119,19 @@ const LotDetail: React.FC = () => {
             </Button>
 
             {/* Lot Header */}
-            <Card elevation={2} sx={{ mb: 3 }}>
+            <Card elevation={2} sx={{ mb: 3, overflow: 'hidden' }}>
+                {lot.imageUrl && (
+                    <CardMedia
+                        component="img"
+                        height="300"
+                        image={lot.imageUrl}
+                        alt={lot.name}
+                        sx={{
+                            objectFit: 'cover',
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                        }}
+                    />
+                )}
                 <CardContent sx={{ p: 4 }}>
                     <Typography variant="h3" gutterBottom fontWeight={700}>
                         {lot.name}
@@ -198,34 +210,14 @@ const LotDetail: React.FC = () => {
                         <Typography variant="h5" fontWeight={600}>
                             Select Your Parking Spot
                         </Typography>
-                        <Button
-                            variant="contained"
-                            onClick={() => setView3D(!view3D)}
-                            sx={{
-                                borderRadius: 3,
-                                bgcolor: view3D ? 'secondary.main' : 'primary.main',
-                            }}
-                        >
-                            {view3D ? '📊 2D Plan View' : '🌐 3D Immersive View'}
-                        </Button>
                     </Box>
 
                     <Box sx={{ minHeight: '400px' }}>
-                        {view3D ? (
-                            <Box sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                                <ParkingLot3D
-                                    spots={lot.spots || []}
-                                    selectedSpot={selectedSpot}
-                                    onSpotSelect={setSelectedSpot}
-                                />
-                            </Box>
-                        ) : (
-                            <SpotVisualization
-                                spots={lot.spots || []}
-                                onSpotClick={setSelectedSpot}
-                                selectedSpotId={selectedSpot?.id}
-                            />
-                        )}
+                        <SpotVisualization
+                            spots={lot.spots || []}
+                            onSpotClick={setSelectedSpot}
+                            selectedSpotId={selectedSpot?.id}
+                        />
                     </Box>
 
                     {selectedSpot && (
@@ -239,11 +231,9 @@ const LotDetail: React.FC = () => {
                                         S-{selectedSpot.spot_number}
                                     </Typography>
                                     {selectedSpot.nextReservation && (() => {
-                                        const start = new Date(selectedSpot.nextReservation!.startTime);
                                         const end = new Date(selectedSpot.nextReservation!.endTime);
                                         const now = new Date();
                                         if (end > now) {
-                                            const startTimeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                                             const endTimeStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                                             return (
                                                 <Typography variant="body2" color="error" sx={{ display: 'block', mt: 0.5 }}>
@@ -254,11 +244,6 @@ const LotDetail: React.FC = () => {
                                         return null;
                                     })()}
                                 </Box>
-                                {view3D && (
-                                    <Typography variant="caption" color="primary">
-                                        📍 Guided path active in 3D
-                                    </Typography>
-                                )}
                             </Box>
                         </Paper>
                     )}
@@ -266,82 +251,116 @@ const LotDetail: React.FC = () => {
             </Card>
 
             {/* Reservation Panel */}
-            <Card elevation={2}>
-                <CardContent sx={{ p: 4 }}>
-                    <Typography variant="h5" gutterBottom fontWeight={700}>
-                        Confirm Reservation
-                    </Typography>
-
-                    <Box sx={{ my: 4 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                                Start Time
-                            </Typography>
-                        </Box>
-                        <TextField
-                            type="datetime-local"
-                            fullWidth
-                            value={startTime}
-                            onChange={(e) => setStartTime(e.target.value)}
-                            sx={{ mb: 3 }}
-                            InputLabelProps={{
-                                shrink: true,
-                            }}
-                        />
-
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                                Parking Duration
-                            </Typography>
-                            <Typography variant="body1" color="primary" fontWeight={700}>
-                                {duration} hour{duration !== 1 ? 's' : ''}
-                            </Typography>
-                        </Box>
-                        <Slider
-                            value={duration}
-                            onChange={(_e, value) => setDuration(value as number)}
-                            min={1}
-                            max={24}
-                            marks={[
-                                { value: 1, label: '1 Hour' },
-                                { value: 24, label: '24 Hours' }
-                            ]}
-                            valueLabelDisplay="auto"
-                            valueLabelFormat={(value) => `${value}h`}
-                        />
+            <Card elevation={3} sx={{ overflow: 'hidden', borderRadius: 3 }}>
+                <CardContent sx={{ p: { xs: 3, md: 4 }, background: 'linear-gradient(135deg, #0d1625 0%, #0c2236 100%)', color: 'white' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                        <Typography variant="h5" fontWeight={800}>
+                            Confirm Reservation
+                        </Typography>
+                        <Chip label={lot.isAvailable ? 'Available' : 'Full'} color={lot.isAvailable ? 'success' : 'error'} />
                     </Box>
 
-                    <Paper elevation={0} sx={{ p: 3, bgcolor: 'background.default', mb: 3 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="h6" fontWeight={600}>
-                                Total Amount
-                            </Typography>
-                            <Typography variant="h3" color="primary" fontWeight={800}>
-                                ${totalCost.toFixed(2)}
-                            </Typography>
-                        </Box>
-                    </Paper>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.1fr 0.9fr' }, gap: 3, alignItems: 'start' }}>
+                        <Paper elevation={0} sx={{ p: 3, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            <Typography variant="subtitle2" sx={{ opacity: 0.8, mb: 1 }}>Start Time</Typography>
+                            <TextField
+                                type="datetime-local"
+                                fullWidth
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                                sx={{
+                                    '& .MuiInputBase-root': { color: 'white' },
+                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
+                                    '& input::-webkit-calendar-picker-indicator': {
+                                        filter: 'invert(61%) sepia(82%) saturate(420%) hue-rotate(121deg) brightness(93%) contrast(92%)'
+                                    },
+                                    mb: 2
+                                }}
+                                InputProps={{
+                                    sx: {
+                                        '& .MuiSvgIcon-root': { color: '#22d3ee' }
+                                    }
+                                }}
+                            />
 
-                    {isSelectedSpotReserved && (
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            Selected spot is reserved and will be available in {selectedSpotAvailabilityStr}. Please choose another spot or wait.
-                        </Typography>
-                    )}
-                    <Button
-                        onClick={handleReserve}
-                        disabled={!lot.isAvailable || isSelectedSpotReserved}
-                        variant="contained"
-                        size="large"
-                        fullWidth
-                        sx={{
-                            py: 2,
-                            fontSize: '1.125rem',
-                            fontWeight: 700,
-                            borderRadius: 3,
-                        }}
-                    >
-                        {isSelectedSpotReserved ? '🔒 Spot reserved' : (!lot.isAvailable ? '❌ Lot Fully Booked' : '🅿️ Reserve Now')}
-                    </Button>
+                            <Typography variant="subtitle2" sx={{ opacity: 0.8, mb: 1 }}>Duration</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                                <Typography variant="body2" sx={{ opacity: 0.8 }}>Adjust hours</Typography>
+                                <Typography variant="body1" fontWeight={700}>{duration}h</Typography>
+                            </Box>
+                            <Slider
+                                value={duration}
+                                onChange={(_e, value) => setDuration(value as number)}
+                                min={1}
+                                max={24}
+                                marks={[
+                                    { value: 1, label: '1h' },
+                                    { value: 12, label: '12h' },
+                                    { value: 24, label: '24h' }
+                                ]}
+                                valueLabelDisplay="auto"
+                                valueLabelFormat={(value) => `${value}h`}
+                                sx={{
+                                    color: '#22d3ee'
+                                }}
+                            />
+
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+                                {[1, 2, 4, 8, 12, 24].map((h) => (
+                                    <Chip
+                                        key={h}
+                                        label={`${h}h`}
+                                        onClick={() => setDuration(h)}
+                                        color={duration === h ? 'primary' : 'default'}
+                                        variant={duration === h ? 'filled' : 'outlined'}
+                                        sx={{ color: duration === h ? 'white' : 'rgba(255,255,255,0.8)' }}
+                                    />
+                                ))}
+                            </Box>
+                        </Paper>
+
+                        <Paper elevation={0} sx={{ p: 3, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            <Typography variant="subtitle2" sx={{ opacity: 0.8, mb: 1 }}>Summary</Typography>
+                            <Box sx={{ display: 'grid', gap: 1.5 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Spot</Typography>
+                                    <Typography fontWeight={700}>{selectedSpot ? selectedSpot.spot_number : 'Select a spot'}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Duration</Typography>
+                                    <Typography fontWeight={700}>{duration} hour{duration !== 1 ? 's' : ''}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Rate</Typography>
+                                    <Typography fontWeight={700}>${Number(lot.pricePerHour).toFixed(2)}/hr</Typography>
+                                </Box>
+                                <Divider sx={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Typography variant="h6" fontWeight={800}>Total</Typography>
+                                    <Typography variant="h4" color="success.light" fontWeight={800}>
+                                        ${totalCost.toFixed(2)}
+                                    </Typography>
+                                </Box>
+                            </Box>
+
+                            {isSelectedSpotReserved && (
+                                <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
+                                    Spot reserved; available in {selectedSpotAvailabilityStr}. Choose another or wait.
+                                </Typography>
+                            )}
+
+                            <Button
+                                onClick={handleReserve}
+                                disabled={!lot.isAvailable || isSelectedSpotReserved}
+                                variant="contained"
+                                fullWidth
+                                sx={{ mt: 3, py: 1.6, fontWeight: 800, borderRadius: 2 }}
+                            >
+                                {isSelectedSpotReserved ? '🔒 Spot reserved' : (!lot.isAvailable ? '❌ Lot Fully Booked' : '🅿️ Reserve Now')}
+                            </Button>
+                        </Paper>
+                    </Box>
                 </CardContent>
             </Card>
         </Container >

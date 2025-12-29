@@ -18,6 +18,8 @@ import AddLocationIcon from '@mui/icons-material/AddLocation';
 import EqualizerIcon from '@mui/icons-material/Equalizer';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import ParkingIcon from '@mui/icons-material/LocalParking';
+import LogoutIcon from '@mui/icons-material/Logout';
+import { useAuth } from '../context/AuthContext';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 
@@ -29,6 +31,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
+    const { logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [openSections, setOpenSections] = React.useState<{ [key: string]: boolean }>({
@@ -40,24 +43,21 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
         setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
     };
 
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
+
     const isActive = (path: string) => location.pathname === path;
 
     const menuItems = [
         {
-            section: 'Admin Board',
-            key: 'adminBoard',
+            section: 'Admin Portal',
+            key: 'adminPortal',
             items: [
-                { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-                { text: 'Analytics', icon: <EqualizerIcon />, path: '/analytics' },
-            ],
-        },
-        {
-            section: 'List Your Space',
-            key: 'listSpace',
-            items: [
-                { text: 'Marketplace', icon: <StorefrontIcon />, path: '/marketplace' },
-                { text: 'Create Listing', icon: <AddLocationIcon />, path: '/marketplace/create' },
-                { text: 'Pricing', icon: <MonetizationOnIcon />, path: '/pricing' },
+                { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin/dashboard' },
+                { text: 'Your Listing', icon: <ParkingIcon />, path: '/admin/listings' },
+                { text: 'Create Listing', icon: <AddLocationIcon />, path: '/admin/create' },
             ],
         },
     ];
@@ -156,6 +156,34 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
                         </Collapse>
                     </Box>
                 ))}
+            </List>
+
+            <Box sx={{ flexGrow: 1 }} />
+
+            <Divider sx={{ my: 1 }} />
+            <List sx={{ px: 2, pb: 2 }}>
+                <ListItem disablePadding>
+                    <ListItemButton
+                        onClick={handleLogout}
+                        sx={{
+                            borderRadius: 2,
+                            '&:hover': {
+                                backgroundColor: 'rgba(255, 68, 68, 0.08)',
+                            },
+                        }}
+                    >
+                        <ListItemIcon sx={{ minWidth: 40, color: '#ff4444' }}>
+                            <LogoutIcon />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Logout"
+                            primaryTypographyProps={{
+                                fontWeight: 600,
+                                color: '#ff4444'
+                            }}
+                        />
+                    </ListItemButton>
+                </ListItem>
             </List>
         </Drawer>
     );

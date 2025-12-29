@@ -10,7 +10,9 @@ import {
     Alert,
     Link,
     InputAdornment,
-    IconButton
+    IconButton,
+    Switch,
+    FormControlLabel
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -25,6 +27,7 @@ const SignupPage: React.FC = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [validationError, setValidationError] = useState<string | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     const { register, googleLogin, error } = useAuth();
     const navigate = useNavigate();
@@ -44,8 +47,13 @@ const SignupPage: React.FC = () => {
         }
 
         try {
-            await register({ name, email, password });
-            navigate('/');
+            await register({
+                name,
+                email,
+                password,
+                role: isAdmin ? 'admin' : 'user'
+            });
+            navigate(isAdmin ? '/admin/dashboard' : '/');
         } catch (err) {
             // Managed by AuthContext
         }
@@ -137,6 +145,19 @@ const SignupPage: React.FC = () => {
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                         />
+
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={isAdmin}
+                                    onChange={(e) => setIsAdmin(e.target.checked)}
+                                    color="primary"
+                                />
+                            }
+                            label="Sign up as Admin"
+                            sx={{ mt: 1 }}
+                        />
+
                         <Button
                             type="submit"
                             fullWidth

@@ -6,9 +6,9 @@ interface AuthContextType {
     token: string | null;
     isAuthenticated: boolean;
     loading: boolean;
-    login: (credentials: LoginAvailable) => Promise<void>;
-    googleLogin: (token: string) => Promise<void>;
-    register: (data: RegisterData) => Promise<void>;
+    login: (credentials: LoginAvailable) => Promise<User>;
+    googleLogin: (token: string) => Promise<User>;
+    register: (data: RegisterData) => Promise<User>;
     logout: () => void;
     error: string | null;
 }
@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         initAuth();
     }, [token]);
 
-    const login = async (credentials: LoginAvailable) => {
+    const login = async (credentials: LoginAvailable): Promise<User> => {
         setLoading(true);
         setError(null);
         try {
@@ -52,6 +52,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setUser(data.user);
             localStorage.setItem('token', data.token);
             // Optionally store user info or just rely on fetch
+            return data.user;
         } catch (err: any) {
             setError(err.response?.data?.message || 'Login failed');
             throw err;
@@ -60,7 +61,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
-    const googleLogin = async (token: string) => {
+    const googleLogin = async (token: string): Promise<User> => {
         setLoading(true);
         setError(null);
         try {
@@ -68,6 +69,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setToken(result.token);
             setUser(result.user);
             localStorage.setItem('token', result.token);
+            return result.user;
         } catch (err: any) {
             console.error("Google Login API Error:", err.response?.data || err.message);
             setError(err.response?.data?.message || 'Google Login failed');
@@ -77,7 +79,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
-    const register = async (data: RegisterData) => {
+    const register = async (data: RegisterData): Promise<User> => {
         setLoading(true);
         setError(null);
         try {
@@ -85,6 +87,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setToken(result.token);
             setUser(result.user);
             localStorage.setItem('token', result.token);
+            return result.user;
         } catch (err: any) {
             setError(err.response?.data?.message || 'Registration failed');
             throw err;

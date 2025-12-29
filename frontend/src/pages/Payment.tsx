@@ -14,7 +14,7 @@ import {
     FormControl,
     Alert,
     Divider,
-    Paper,
+    Paper
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
@@ -116,10 +116,10 @@ const Payment: React.FC = () => {
                 state: {
                     lot,
                     selectedSpot,
-                    duration,
-                    totalCost,
-                    reservationId: newReservation.id.toString()
-                }
+                duration,
+                totalCost,
+                reservationId: newReservation.id.toString()
+            }
             });
 
         } catch (error) {

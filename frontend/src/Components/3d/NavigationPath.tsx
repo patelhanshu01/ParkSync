@@ -55,47 +55,38 @@ const NavigationPath: React.FC<NavigationPathProps> = ({ startPosition, endPosit
 
     return (
         <group>
-            {/* Path Line (Neon Core) */}
-            <mesh>
-                <tubeGeometry args={[curve, 64, 0.5, 8, false]} />
+            {/* Path Line (Yellow Road Paint) */}
+            {/* We use a tube but flattened to look like paint on the road */}
+            <mesh position={[0, 0.2, 0]}>
+                <tubeGeometry args={[curve, 128, 1.5, 4, false]} />
                 <meshStandardMaterial
-                    color="#00F5FF"
-                    emissive="#00F5FF"
-                    emissiveIntensity={5}
-                />
-            </mesh>
-
-            {/* Outer Glow Path */}
-            <mesh>
-                <tubeGeometry args={[curve, 64, 1.2, 8, false]} />
-                <meshStandardMaterial
-                    color="#00F5FF"
+                    color="#FFD700"
+                    emissive="#FFD700"
+                    emissiveIntensity={0.5}
+                    roughness={0.8}
                     transparent
-                    opacity={0.2}
+                    opacity={0.9}
                 />
             </mesh>
 
-            {/* Cyber Guide Vehicle */}
+            {/* Guide Vehicle (Simplified) */}
             <group ref={guideRef}>
-                <mesh position={[0, 0.5, 0]}>
-                    <boxGeometry args={[3, 1, 6]} />
-                    <meshStandardMaterial color="#00F5FF" emissive="#00F5FF" emissiveIntensity={2} />
-                </mesh>
-                <mesh position={[0, 1.2, -0.5]}>
-                    <boxGeometry args={[2.5, 0.8, 3]} />
-                    <meshStandardMaterial color="#1a1a1a" roughness={0.1} metalness={1} />
+                <mesh position={[0, 1.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <coneGeometry args={[1, 3, 16]} />
+                    <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={1} />
                 </mesh>
             </group>
 
-            {/* Animated Directional Arrows */}
-            {pathPoints.filter((_, i) => i % 4 === 0).map((point, index) => (
-                <group key={index} position={[point.x, 0.2, point.z]}>
+            {/* Directional Arrows (Painted on ground) */}
+            {pathPoints.filter((_, i) => i % 5 === 0).map((point, index) => (
+                <group key={index} position={[point.x, 0.3, point.z]}>
                     <mesh rotation={[-Math.PI / 2, 0, Math.atan2(endPosition[0] - startPosition[0], endPosition[2] - startPosition[2])]}>
-                        <planeGeometry args={[3, 3]} />
+                        <planeGeometry args={[2, 2]} />
                         <meshBasicMaterial
-                            color="#00F5FF"
+                            color="#fff"
                             transparent
-                            opacity={0.3}
+                            opacity={0.8}
+                            side={THREE.DoubleSide}
                         />
                     </mesh>
                 </group>

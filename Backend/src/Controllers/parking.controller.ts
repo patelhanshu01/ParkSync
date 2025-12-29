@@ -79,3 +79,10 @@ export const deleteParking = async (req: Request, res: Response) => {
   if (!success) return res.status(404).json({ message: "Parking lot not found" });
   res.json({ message: "Deleted successfully" });
 };
+
+export const getParkingPhoto = async (req: Request, res: Response) => {
+  const { reference } = req.params;
+  const url = await service.getPhotoUrl(reference);
+  if (!url) return res.status(404).json({ message: "Photo not found" });
+  res.redirect(url);
+};

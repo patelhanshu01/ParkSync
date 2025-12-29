@@ -2,6 +2,14 @@ import { AppDataSource } from '../config/database.config';
 import { ParkingLot } from '../Models/parking-lot.entity';
 import { Client } from '@googlemaps/google-maps-services-js';
 
+const FALLBACK_IMAGES = [
+  "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1470224114660-3f6686c562eb?auto=format&fit=crop&w=800&q=80",
+  "https://images.unsplash.com/photo-1526626607727-42c162f7ab06?auto=format&fit=crop&w=800&q=80"
+];
+
 export class ParkingService {
   private repository = AppDataSource.getRepository(ParkingLot);
   private googleClient = new Client({});
@@ -163,20 +171,44 @@ export class ParkingService {
           p.has_ev_charging = Math.random() > 0.7;
           p.has_cctv = true;
 
+          // Extract photo from Google Maps
+          if ((place as any).photos && (place as any).photos.length > 0) {
+            p.imageUrl = `http://localhost:3000/api/parking/photo/${(place as any).photos[0].photo_reference}`;
+          } else {
+            p.imageUrl = FALLBACK_IMAGES[Math.floor(Math.random() * FALLBACK_IMAGES.length)];
+          }
+
           // Generalized Multi-Story Support
           p.floors = this.detectFloorsFromName(p.name);
 
           p = await this.repository.save(p);
           await this.generateMockSpots(p);
         } else {
+          let updated = false;
+          // Refresh image if Google Maps provides one
+          if ((place as any).photos && (place as any).photos.length > 0) {
+            const newUrl = `http://localhost:3000/api/parking/photo/${(place as any).photos[0].photo_reference}`;
+            if (p.imageUrl !== newUrl) {
+              p.imageUrl = newUrl;
+              updated = true;
+            }
+          } else if (!p.imageUrl || p.imageUrl === "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80") {
+            // Provide variety for records with no image or the old hardcoded fallback
+            p.imageUrl = FALLBACK_IMAGES[Math.floor(Math.random() * FALLBACK_IMAGES.length)];
+            updated = true;
+          }
+
           // Repair logic: upgrade to multi-story if heuristics suggest it and it's currently 1-floor
           const targetFloors = this.detectFloorsFromName(p.name);
           if (targetFloors > 1 && p.floors === 1) {
             p.floors = targetFloors;
+            updated = true;
             await this.repository.save(p);
             const spotRepository = AppDataSource.getRepository('ParkingSpot');
             await spotRepository.delete({ parkingLot: { id: p.id } });
             await this.generateMockSpots(p);
+          } else if (updated) {
+            await this.repository.save(p);
           }
         }
 
@@ -258,20 +290,44 @@ export class ParkingService {
           p.has_ev_charging = Math.random() > 0.7;
           p.has_cctv = true;
 
+          // Extract photo from Google Maps
+          if ((place as any).photos && (place as any).photos.length > 0) {
+            p.imageUrl = `http://localhost:3000/api/parking/photo/${(place as any).photos[0].photo_reference}`;
+          } else {
+            p.imageUrl = FALLBACK_IMAGES[Math.floor(Math.random() * FALLBACK_IMAGES.length)];
+          }
+
           // Generalized Multi-Story Support
           p.floors = this.detectFloorsFromName(p.name);
 
           p = await this.repository.save(p);
           await this.generateMockSpots(p);
         } else {
+          let updated = false;
+          // Refresh image if Google Maps provides one
+          if ((place as any).photos && (place as any).photos.length > 0) {
+            const newUrl = `http://localhost:3000/api/parking/photo/${(place as any).photos[0].photo_reference}`;
+            if (p.imageUrl !== newUrl) {
+              p.imageUrl = newUrl;
+              updated = true;
+            }
+          } else if (!p.imageUrl || p.imageUrl === "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80") {
+            // Provide variety for records with no image or the old hardcoded fallback
+            p.imageUrl = FALLBACK_IMAGES[Math.floor(Math.random() * FALLBACK_IMAGES.length)];
+            updated = true;
+          }
+
           // Repair logic: upgrade to multi-story if heuristics suggest it and it's currently 1-floor
           const targetFloors = this.detectFloorsFromName(p.name);
           if (targetFloors > 1 && p.floors === 1) {
             p.floors = targetFloors;
+            updated = true;
             await this.repository.save(p);
             const spotRepository = AppDataSource.getRepository('ParkingSpot');
             await spotRepository.delete({ parkingLot: { id: p.id } });
             await this.generateMockSpots(p);
+          } else if (updated) {
+            await this.repository.save(p);
           }
         }
 
@@ -404,5 +460,9 @@ export class ParkingService {
       }
       lot.is_lowest_co2 = lot.co2_estimated_g === minCO2;
     });
+  }
+  async getPhotoUrl(photoReference: string): Promise<string | null> {
+    if (!process.env.GOOGLE_MAPS_API_KEY) return null;
+    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoReference}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
   }
 }

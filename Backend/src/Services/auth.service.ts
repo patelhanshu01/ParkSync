@@ -15,6 +15,7 @@ export interface RegisterData {
   name: string;
   email: string;
   password: string;
+  role?: string;
 }
 
 export interface AuthResponse {
@@ -23,6 +24,7 @@ export interface AuthResponse {
     id: number;
     name: string;
     email: string;
+    role: string;
   };
 }
 
@@ -43,13 +45,18 @@ export class AuthService {
     }
 
     // Create new user
-    const user = await this.userService.create(data);
+    // If role is provided, use it, otherwise default to 'user' in entity or here
+    // We need to pass role to userService.create if strict, but let's assume create accepts partial
+    const user = await this.userService.create({
+      ...data,
+      role: data.role || 'user'
+    });
 
     // Generate token
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      role: 'user',
+      role: user.role,
     });
 
     return {
@@ -58,6 +65,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     };
   }
@@ -83,7 +91,7 @@ export class AuthService {
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      role: 'user',
+      role: user.role,
     });
 
     return {
@@ -92,6 +100,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     };
   }
@@ -126,7 +135,7 @@ export class AuthService {
     const jwtToken = generateToken({
       userId: user.id,
       email: user.email,
-      role: 'user',
+      role: user.role,
     });
 
     return {
@@ -135,6 +144,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     };
   }

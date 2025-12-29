@@ -13,8 +13,6 @@ const EcoBadge: React.FC<EcoBadgeProps> = ({ co2Impact, showDetails = true }) =>
     // Use useMemo to prevent the example from changing on every re-render
     const equivalent = useMemo(() => getRandomEquivalent(estimated_g), [estimated_g]);
 
-    if (!is_lowest && !showDetails) return null;
-
     return (
         <div style={{
             display: 'inline-flex',

@@ -11,6 +11,9 @@ export class ParkingLot {
   @Column()
   name: string;
 
+  @Column({ nullable: true })
+  imageUrl: string;
+
   @Column()
   location: string;
 

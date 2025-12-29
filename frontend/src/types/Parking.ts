@@ -4,6 +4,7 @@ import { EVCharger } from './EVCharger';
 export interface ParkingLot {
   id?: number;
   name: string;
+  imageUrl?: string;
   location: string;
   pricePerHour: number;
   isAvailable: boolean;

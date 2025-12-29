@@ -8,13 +8,13 @@ const authService = new AuthService();
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    const result = await authService.register({ name, email, password });
+    const result = await authService.register({ name, email, password, role });
     res.status(201).json(result);
   } catch (error: any) {
     res.status(400).json({ message: error.message || 'Registration failed' });
@@ -66,6 +66,7 @@ router.get('/me', authMiddleware, async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      role: user.role,
     });
   } catch (error: any) {
     res.status(500).json({ message: error.message || 'Server error' });

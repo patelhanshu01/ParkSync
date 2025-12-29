@@ -1,7 +1,9 @@
 import React from 'react';
+import { keyframes } from '@emotion/react';
 import {
     Card,
     CardContent,
+    CardMedia,
     Typography,
     Box,
     Stack,
@@ -24,6 +26,11 @@ interface ParkingLotCardProps {
     isClosest?: boolean;
 }
 
+const fadeInUp = keyframes`
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+`;
+
 const ParkingLotCard: React.FC<ParkingLotCardProps> = ({ parkingLot, onClick, isCheapest, isClosest }) => {
 
     const badges = [];
@@ -41,6 +48,8 @@ const ParkingLotCard: React.FC<ParkingLotCardProps> = ({ parkingLot, onClick, is
                 flexDirection: 'column',
                 cursor: 'pointer',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                opacity: 0,
+                animation: `${fadeInUp} 0.5s ease forwards`,
                 '&:hover': {
                     transform: 'translateY(-8px)',
                     boxShadow: '0 12px 24px rgba(0,0,0,0.1)',
@@ -48,6 +57,21 @@ const ParkingLotCard: React.FC<ParkingLotCardProps> = ({ parkingLot, onClick, is
             }}
             onClick={() => parkingLot.id && onClick(parkingLot.id)}
         >
+            {parkingLot.imageUrl && (
+                <CardMedia
+                    component="img"
+                    height="140"
+                    image={parkingLot.imageUrl}
+                    alt={parkingLot.name}
+                    sx={{
+                        objectFit: 'cover',
+                        transition: 'transform 0.3s ease-in-out',
+                        '&:hover': {
+                            transform: 'scale(1.05)'
+                        }
+                    }}
+                />
+            )}
             <CardContent sx={{ flexGrow: 1, p: 2, '&:last-child': { pb: 2 } }}>
                 {/* Header */}
                 <Box sx={{ mb: 1.5 }}>

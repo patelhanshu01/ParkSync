@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Container, Typography, Box, Paper, Stack, Chip, Button, Divider, CircularProgress, Alert, Dialog, DialogContent, DialogTitle, IconButton } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -8,13 +8,34 @@ import CloseIcon from '@mui/icons-material/Close';
 import { QRCodeSVG } from 'qrcode.react';
 import { getMyBookings, Reservation } from '../../api/reservationApi';
 import { useNavigate } from 'react-router-dom';
+import { GoogleMap, MarkerF, DirectionsRenderer, useJsApiLoader } from '@react-google-maps/api';
 
 const MyBookings: React.FC = () => {
     const [bookings, setBookings] = useState<Reservation[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<Reservation | null>(null);
+    const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+    const [navError, setNavError] = useState<string | null>(null);
+    const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
     const navigate = useNavigate();
+    const { isLoaded: mapLoaded } = useJsApiLoader({
+        id: 'google-map-script',
+        googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '',
+        libraries: ['places']
+    });
+    const mapRef = useRef<google.maps.Map | null>(null);
+    const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
+    const [watchId, setWatchId] = useState<number | null>(null);
+    const recalcRef = useRef<number>(0);
+
+    useEffect(() => {
+        return () => {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+            }
+        };
+    }, [watchId]);
 
     useEffect(() => {
         const fetchBookings = async () => {
@@ -50,6 +71,81 @@ const MyBookings: React.FC = () => {
     // Queue feature removed: no polling needed.
 
     // Queue actions removed.
+
+    const resolveDestination = (booking: Reservation) => {
+        const lotAny = booking.parkingLot as any;
+        const lat = lotAny?.latitude ?? lotAny?.lat;
+        const lng = lotAny?.longitude ?? lotAny?.lng;
+        if (lat === undefined || lng === undefined || lat === null || lng === null) return null;
+        return { lat: Number(lat), lng: Number(lng) };
+    };
+
+    const startInAppNavigation = (booking: Reservation) => {
+        setNavError(null);
+        setDirections(null);
+        setUserPos(null);
+        const destination = resolveDestination(booking);
+        if (!destination) {
+            setNavError('No coordinates available for this parking lot.');
+            return;
+        }
+        setMapCenter(destination);
+
+        if (!navigator.geolocation) {
+            setNavError('Geolocation is not supported by your browser.');
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                setUserPos(origin);
+                calculateRoute(origin, destination);
+                const id = navigator.geolocation.watchPosition(
+                    (p) => {
+                        const current = { lat: p.coords.latitude, lng: p.coords.longitude };
+                        setUserPos(current);
+                        const now = Date.now();
+                        if (now - recalcRef.current > 15000) {
+                            recalcRef.current = now;
+                            calculateRoute(current, destination);
+                        }
+                    },
+                    () => setNavError('Location permission denied. Enable location to get turn-by-turn directions.'),
+                    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+                );
+                setWatchId(id);
+            },
+            () => setNavError('Location permission denied. Enable location to get turn-by-turn directions.')
+        );
+    };
+
+    const calculateRoute = (origin: { lat: number; lng: number }, destination: { lat: number; lng: number }) => {
+        if (!window.google?.maps) {
+            setNavError('Maps SDK not loaded. Please try again.');
+            return;
+        }
+        const service = new google.maps.DirectionsService();
+        service.route(
+            {
+                origin,
+                destination,
+                travelMode: google.maps.TravelMode.DRIVING
+            },
+            (result, status) => {
+                if (status === google.maps.DirectionsStatus.OK && result) {
+                    setDirections(result);
+                    if (mapRef.current) {
+                        mapRef.current.setCenter(result.routes[0]?.legs?.[0]?.end_location || destination);
+                        mapRef.current.setTilt(67.5);
+                        mapRef.current.setHeading(45);
+                    }
+                } else {
+                    setNavError('Unable to fetch directions right now.');
+                }
+            }
+        );
+    };
 
     if (loading) {
         return (
@@ -194,6 +290,70 @@ const MyBookings: React.FC = () => {
                                     <Typography variant="caption" color="text.secondary">Status</Typography>
                                     <Box>{getStatusChip(selectedBooking.startTime, selectedBooking.endTime)}</Box>
                                 </Box>
+                            </Box>
+
+                            <Box sx={{ mt: 3, display: 'grid', gap: 1.5 }}>
+                                <Typography variant="subtitle2" fontWeight="bold">Navigation</Typography>
+                                {mapLoaded && resolveDestination(selectedBooking) ? (
+                                    <Box sx={{ height: 240, borderRadius: 2, overflow: 'hidden' }}>
+                                        <GoogleMap
+                                            mapContainerStyle={{ width: '100%', height: '100%' }}
+                                            center={mapCenter || resolveDestination(selectedBooking)!}
+                                            zoom={15}
+                                            options={{
+                                                disableDefaultUI: true,
+                                                zoomControl: true,
+                                                mapTypeId: 'roadmap',
+                                                gestureHandling: 'greedy'
+                                            }}
+                                            onLoad={(map) => { mapRef.current = map; }}
+                                        >
+                                            {userPos && <MarkerF position={userPos} />}
+                                            <MarkerF position={resolveDestination(selectedBooking)!} />
+                                            {directions && <DirectionsRenderer directions={directions} />}
+                                        </GoogleMap>
+                                    </Box>
+                                ) : (
+                                    <Typography variant="body2" color="text.secondary">
+                                        Map unavailable for this booking. Coordinates not provided.
+                                    </Typography>
+                                )}
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                                    <Button
+                                        variant="contained"
+                                        fullWidth
+                                        startIcon={<DirectionsCarIcon />}
+                                        onClick={() => startInAppNavigation(selectedBooking)}
+                                        disabled={!resolveDestination(selectedBooking) || !mapLoaded}
+                                    >
+                                        Start navigation
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        fullWidth
+                                        onClick={() => {
+                                            setDirections(null);
+                                            setMapCenter(resolveDestination(selectedBooking) || null);
+                                            setUserPos(null);
+                                            if (watchId !== null) {
+                                                navigator.geolocation.clearWatch(watchId);
+                                                setWatchId(null);
+                                            }
+                                        }}
+                                    >
+                                        Reset view
+                                    </Button>
+                                </Stack>
+                                {navError && (
+                                    <Alert severity="warning" sx={{ mt: 1 }}>
+                                        {navError}
+                                    </Alert>
+                                )}
+                                {!navError && (
+                                    <Typography variant="caption" color="text.secondary">
+                                        Tap when you are ready to drive. We use your device location and render the route in-app.
+                                    </Typography>
+                                )}
                             </Box>
                         </DialogContent>
                     </>

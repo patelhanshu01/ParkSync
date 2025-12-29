@@ -6,6 +6,7 @@ export interface User {
     id: number;
     name: string;
     email: string;
+    role?: string;
 }
 
 export interface AuthResponse {
@@ -22,6 +23,7 @@ export interface RegisterData {
     name: string;
     email: string;
     password: string;
+    role?: string;
 }
 
 // Create a configured axios instance

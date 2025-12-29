@@ -8,5 +8,6 @@ router.get('/:id', ParkingController.getParkingById);
 router.post('/', ParkingController.createParking);
 router.put('/:id', ParkingController.updateParking);
 router.delete('/:id', ParkingController.deleteParking);
+router.get('/photo/:reference', ParkingController.getParkingPhoto);
 
 export default router;

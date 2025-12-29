@@ -14,13 +14,16 @@ import {
     Badge
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
+
 import SearchBar from '../Components/searchBar';
 import ParkingLotCard from '../Components/ParkingLotCard';
+import ListingCard from '../Components/ListingCard';
 import FilterPanel from '../Components/FilterPanel';
 import { ParkingLot, SearchFilters } from '../types/Parking';
+import { Listing } from '../types/Listing';
 import { getParkingLots } from '../api/parkingApi';
 import { getMyBookings } from '../api/reservationApi';
+import { getListings } from '../api/listingApi';
 import { useAuth } from '../context/AuthContext';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
@@ -53,8 +56,10 @@ const Home: React.FC = () => {
     });
     const [showFilters, setShowFilters] = useState(false);
     const [bookingCount, setBookingCount] = useState(0);
+    const [listings, setListings] = useState<Listing[]>([]);
+    const [loadingListings, setLoadingListings] = useState(false);
     const navigate = useNavigate();
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
 
     const { isLoaded, loadError } = useJsApiLoader({
         id: 'google-map-script',
@@ -119,6 +124,20 @@ const Home: React.FC = () => {
             }
         };
         fetchBookings();
+
+        // Fetch private listings
+        const fetchListings = async () => {
+            setLoadingListings(true);
+            try {
+                const response = await getListings();
+                setListings(response.data.results || []);
+            } catch (e) {
+                console.error('Failed to fetch listings:', e);
+            } finally {
+                setLoadingListings(false);
+            }
+        };
+        fetchListings();
     }, []);
 
     const handleSearch = () => {
@@ -152,10 +171,30 @@ const Home: React.FC = () => {
         });
     };
 
+    const [showMap, setShowMap] = useState(true);
+
+    // Toggle Map on Wheel/Scroll direction
+    const handleWheel = (e: React.WheelEvent) => {
+        if (e.deltaY > 0 && showMap) {
+            setShowMap(false); // Scrolling down -> Hide
+        } else if (e.deltaY < 0 && !showMap && e.currentTarget.scrollTop === 0) {
+            setShowMap(true); // Scrolling up AT TOP -> Show
+        }
+    };
+
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', bgcolor: 'background.default' }}>
+        <Box
+            sx={{ height: '100vh', bgcolor: 'background.default', overflowY: 'auto', position: 'relative', scrollBehavior: 'smooth' }}
+            onWheel={handleWheel}
+        >
             {/* Top Section: Map */}
-            <Box sx={{ height: '40vh', position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{
+                height: showMap ? '40vh' : '0px',
+                position: 'relative',
+                overflow: 'hidden',
+                transition: 'height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease',
+                opacity: showMap ? 1 : 0
+            }}>
                 {isLoaded ? (
                     <GoogleMap
                         mapContainerStyle={mapContainerStyle}
@@ -168,12 +207,13 @@ const Home: React.FC = () => {
                             disableDefaultUI: false,
                             zoomControl: true,
                             mapTypeId: 'roadmap',
+                            gestureHandling: 'cooperative',
                             styles: [
                                 { featureType: "poi.business", stylers: [{ visibility: "off" }] },
                                 {
                                     featureType: "water",
                                     elementType: "geometry",
-                                    stylers: [{ color: "#e9e9e9" }, { lightnes: 17 }]
+                                    stylers: [{ color: "#e9e9e9" }, { lightness: 17 }]
                                 },
                                 {
                                     featureType: "landscape",
@@ -259,29 +299,31 @@ const Home: React.FC = () => {
                             onSearch={handleSearch}
                         />
                     </Paper>
-                    <Paper
-                        elevation={6}
-                        sx={{
-                            borderRadius: '50%',
-                            width: 50,
-                            height: 50,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: 'rgba(26, 35, 50, 0.95)',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                            cursor: 'pointer',
-                            '&:hover': {
-                                bgcolor: 'rgba(0, 212, 170, 0.15)',
-                                borderColor: 'primary.main'
-                            }
-                        }}
-                        onClick={() => navigate('/marketplace')}
-                    >
-                        <Tooltip title="Marketplace">
-                            <StorefrontIcon sx={{ color: '#00d4aa' }} />
-                        </Tooltip>
-                    </Paper>
+                    {user?.role === 'admin' && (
+                        <Paper
+                            elevation={6}
+                            sx={{
+                                borderRadius: '50%',
+                                width: 50,
+                                height: 50,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: 'rgba(26, 35, 50, 0.95)',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                cursor: 'pointer',
+                                '&:hover': {
+                                    bgcolor: 'rgba(0, 212, 170, 0.15)',
+                                    borderColor: 'primary.main'
+                                }
+                            }}
+                            onClick={() => navigate('/admin/listings')}
+                        >
+                            <Tooltip title="Admin Portal">
+                                <StorefrontIcon sx={{ color: '#00d4aa' }} />
+                            </Tooltip>
+                        </Paper>
+                    )}
                     <Paper
                         elevation={6}
                         sx={{
@@ -328,29 +370,31 @@ const Home: React.FC = () => {
                             <LogoutIcon sx={{ color: '#ff4757' }} />
                         </Tooltip>
                     </Paper>
-                    <Paper
-                        elevation={6}
-                        sx={{
-                            borderRadius: '50%',
-                            width: 50,
-                            height: 50,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: 'rgba(26, 35, 50, 0.95)',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                            cursor: 'pointer',
-                            '&:hover': {
-                                bgcolor: 'rgba(0, 212, 170, 0.15)',
-                                borderColor: 'primary.main'
-                            }
-                        }}
-                        onClick={() => navigate('/dashboard')}
-                    >
-                        <Tooltip title="Dashboard">
-                            <DashboardIcon sx={{ color: '#00d4aa' }} />
-                        </Tooltip>
-                    </Paper>
+                    {user?.role === 'admin' && (
+                        <Paper
+                            elevation={6}
+                            sx={{
+                                borderRadius: '50%',
+                                width: 50,
+                                height: 50,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: 'rgba(26, 35, 50, 0.95)',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                cursor: 'pointer',
+                                '&:hover': {
+                                    bgcolor: 'rgba(0, 212, 170, 0.15)',
+                                    borderColor: 'primary.main'
+                                }
+                            }}
+                            onClick={() => navigate('/admin/dashboard')}
+                        >
+                            <Tooltip title="Admin Dashboard">
+                                <DashboardIcon sx={{ color: '#00d4aa' }} />
+                            </Tooltip>
+                        </Paper>
+                    )}
                     <Paper
                         elevation={6}
                         sx={{
@@ -390,7 +434,9 @@ const Home: React.FC = () => {
                     alignItems: 'center',
                     borderBottom: '1px solid',
                     borderColor: 'divider',
-                    zIndex: 5
+                    zIndex: 20,
+                    position: 'sticky',
+                    top: 0
                 }}
             >
                 <Typography variant="body2" color="text.secondary">
@@ -420,7 +466,7 @@ const Home: React.FC = () => {
             }
 
             {/* Bottom Content: List */}
-            <Box sx={{ flex: 1, overflowY: 'auto', py: 4, bgcolor: 'background.default' }}>
+            <Box sx={{ py: 4, bgcolor: 'background.default', minHeight: '100vh' }}>
                 <Container maxWidth="lg">
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' }, gap: 3 }}>
                         {loading ? (
@@ -449,6 +495,31 @@ const Home: React.FC = () => {
                             </Box>
                         )}
                     </Box>
+
+                    {/* Private Driveway Listings Section */}
+                    {listings.length > 0 && (
+                        <Box sx={{ mt: 6 }}>
+                            <Typography variant="h5" sx={{ mb: 3, fontWeight: 700, color: 'text.primary' }}>
+                                Private Driveway Listings
+                            </Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' }, gap: 3 }}>
+                                {loadingListings ? (
+                                    <Box sx={{ gridColumn: '1 / -1', textAlign: 'center', py: 8 }}>
+                                        <CircularProgress />
+                                    </Box>
+                                ) : (
+                                    listings.map(listing => (
+                                        <Box key={listing.id} sx={{ height: '100%' }}>
+                                            <ListingCard
+                                                listing={listing}
+                                                onView={(id) => navigate(`/admin/listings`)}
+                                            />
+                                        </Box>
+                                    ))
+                                )}
+                            </Box>
+                        </Box>
+                    )}
                 </Container>
             </Box>
         </Box >
