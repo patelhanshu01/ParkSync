@@ -1,4 +1,4 @@
-jest.mock('../src/Services/listing.service', () => {
+jest.mock('../src/modules/listings/listing.service', () => {
   return {
     ListingService: jest.fn().mockImplementation(() => ({
       getAll: jest.fn().mockResolvedValue([{ id: 1, title: 'Mock' }]),
@@ -10,7 +10,7 @@ jest.mock('../src/Services/listing.service', () => {
   };
 });
 
-import * as ListingController from '../src/Controllers/listing.controller';
+import * as ListingController from '../src/modules/listings/listing.controller';
 
 const mockRes = () => {
   const res: any = {};

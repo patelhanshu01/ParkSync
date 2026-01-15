@@ -41,18 +41,34 @@ const ParkingLot3D: React.FC<ParkingLot3DProps> = ({ spots, selectedSpot, onSpot
     const layoutSpots = useMemo(() => {
         if (!floorSpots.length) return [] as (ParkingSpot & { layoutX: number; layoutZ: number })[];
 
-        const rawX = floorSpots.map(s => Number(s.position_x) || 0);
-        const rawZ = floorSpots.map(s => Number(s.position_y) || 0);
-        const spanX = Math.max(...rawX) - Math.min(...rawX);
-        const spanZ = Math.max(...rawZ) - Math.min(...rawZ);
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minZ = Infinity;
+        let maxZ = -Infinity;
+        for (let i = 0; i < floorSpots.length; i++) {
+            const x = Number(floorSpots[i].position_x) || 0;
+            const z = Number(floorSpots[i].position_y) || 0;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (z < minZ) minZ = z;
+            if (z > maxZ) maxZ = z;
+        }
+        const spanX = maxX - minX;
+        const spanZ = maxZ - minZ;
         const needsAutoLayout = spanX < 40 && spanZ < 40; // narrow spread means positions are missing or single-line
 
         if (!needsAutoLayout) {
-            return floorSpots.map(s => ({
-                ...s,
-                layoutX: Number(s.position_x) || 0,
-                layoutZ: Number(s.position_y) || 0
-            }));
+            return floorSpots.map(s => {
+                const layoutX = Number(s.position_x) || 0;
+                const layoutZ = Number(s.position_y) || 0;
+                return {
+                    ...s,
+                    layoutX,
+                    layoutZ,
+                    position_x: layoutX,
+                    position_y: layoutZ
+                };
+            });
         }
 
         const rows = Math.max(2, Math.min(4, Math.ceil(floorSpots.length / 6)));
@@ -66,24 +82,84 @@ const ParkingLot3D: React.FC<ParkingLot3DProps> = ({ spots, selectedSpot, onSpot
             const laneOffset = row % 2 === 0 ? 0 : 10; // stagger rows a bit
             const layoutX = (col - (cols - 1) / 2) * xSpacing;
             const layoutZ = (row - (rows - 1) / 2) * zSpacing + laneOffset;
-            return { ...s, layoutX, layoutZ };
+            return {
+                ...s,
+                layoutX,
+                layoutZ,
+                position_x: layoutX,
+                position_y: layoutZ
+            };
         });
     }, [floorSpots]);
 
-    // Calculate parking lot bounds for camera positioning based on layout coordinates
-    const allX = layoutSpots.length ? layoutSpots.map(s => s.layoutX) : [0];
-    const allZ = layoutSpots.length ? layoutSpots.map(s => s.layoutZ) : [0];
+    const layoutBounds = useMemo(() => {
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minZ = Infinity;
+        let maxZ = -Infinity;
 
-    const minX = Math.min(...allX, -60);
-    const maxX = Math.max(...allX, 60);
-    const minZ = Math.min(...allZ, -60);
-    const maxZ = Math.max(...allZ, 60);
+        for (let i = 0; i < layoutSpots.length; i++) {
+            const spot = layoutSpots[i];
+            const x = spot.layoutX;
+            const z = spot.layoutZ;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (z < minZ) minZ = z;
+            if (z > maxZ) maxZ = z;
+        }
 
-    const width = maxX - minX + 140;
-    const depth = maxZ - minZ + 140;
-    const centerX = (minX + maxX) / 2;
-    const centerZ = (minZ + maxZ) / 2;
-    const entranceZ = maxZ + 70;
+        if (!layoutSpots.length) {
+            minX = 0;
+            maxX = 0;
+            minZ = 0;
+            maxZ = 0;
+        }
+
+        const boundedMinX = Math.min(minX, -60);
+        const boundedMaxX = Math.max(maxX, 60);
+        const boundedMinZ = Math.min(minZ, -60);
+        const boundedMaxZ = Math.max(maxZ, 60);
+
+        const width = boundedMaxX - boundedMinX + 140;
+        const depth = boundedMaxZ - boundedMinZ + 140;
+        const centerX = (boundedMinX + boundedMaxX) / 2;
+        const centerZ = (boundedMinZ + boundedMaxZ) / 2;
+        const entranceZ = boundedMaxZ + 70;
+
+        return { minX: boundedMinX, maxX: boundedMaxX, minZ: boundedMinZ, maxZ: boundedMaxZ, width, depth, centerX, centerZ, entranceZ };
+    }, [layoutSpots]);
+
+    const { minX, maxX, minZ, maxZ, width, depth, centerX, centerZ, entranceZ } = layoutBounds;
+
+    const rowCenters = useMemo(() => {
+        if (!layoutSpots.length) return [] as number[];
+        const set = new Set<number>();
+        for (let i = 0; i < layoutSpots.length; i++) {
+            set.add(layoutSpots[i].layoutZ);
+        }
+        const rows = Array.from(set);
+        rows.sort((a, b) => a - b);
+        return rows;
+    }, [layoutSpots]);
+
+    const laneMeshes = useMemo(() => {
+        const lanes: React.JSX.Element[] = [];
+        for (let i = 0; i < rowCenters.length - 1; i++) {
+            const midZ = (rowCenters[i] + rowCenters[i + 1]) / 2;
+            lanes.push(
+                <mesh key={`lane-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[centerX, -0.05, midZ]}>
+                    <planeGeometry args={[width + 80, 12]} />
+                    <meshStandardMaterial color="#374151" roughness={0.7} />
+                </mesh>
+            );
+        }
+        return lanes;
+    }, [rowCenters, centerX, width]);
+
+    const selectedLayoutSpot = useMemo(() => {
+        if (!selectedSpot) return null;
+        return layoutSpots.find(s => s.id === selectedSpot.id) || null;
+    }, [layoutSpots, selectedSpot]);
 
     return (
         <div style={{ width: '100%', height: '600px', backgroundColor: '#f0f0f0', borderRadius: '16px', overflow: 'hidden', border: '1px solid #ddd' }}>
@@ -128,20 +204,7 @@ const ParkingLot3D: React.FC<ParkingLot3DProps> = ({ spots, selectedSpot, onSpot
                         </mesh>
 
                         {/* Drive lanes between rows */}
-                        {(() => {
-                            const lanes: React.JSX.Element[] = [];
-                            const rowCenters = Array.from(new Set(layoutSpots.map(s => s.layoutZ))).sort((a, b) => a - b);
-                            for (let i = 0; i < rowCenters.length - 1; i++) {
-                                const midZ = (rowCenters[i] + rowCenters[i + 1]) / 2;
-                                lanes.push(
-                                    <mesh key={`lane-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[centerX, -0.05, midZ]}>
-                                        <planeGeometry args={[width + 80, 12]} />
-                                        <meshStandardMaterial color="#374151" roughness={0.7} />
-                                    </mesh>
-                                );
-                            }
-                            return lanes;
-                        })()}
+                        {laneMeshes}
                     </group>
 
                     {/* Level Title (Now subtle clean text on ground) */}
@@ -190,7 +253,7 @@ const ParkingLot3D: React.FC<ParkingLot3DProps> = ({ spots, selectedSpot, onSpot
                     {layoutSpots.map(spot => (
                         <SpotMarker
                             key={spot.id}
-                            spot={{ ...spot, position_x: spot.layoutX, position_y: spot.layoutZ }}
+                            spot={spot}
                             isSelected={selectedSpot?.id === spot.id}
                             onClick={() => spot.status === 'available' && onSpotSelect(spot)}
                         />
@@ -201,9 +264,9 @@ const ParkingLot3D: React.FC<ParkingLot3DProps> = ({ spots, selectedSpot, onSpot
                         <NavigationPath
                             startPosition={[centerX, 0, entranceZ]}
                             endPosition={[
-                                Number((layoutSpots.find(s => s.id === selectedSpot.id)?.layoutX) || selectedSpot.position_x) || 0,
+                                Number((selectedLayoutSpot?.layoutX) ?? selectedSpot.position_x) || 0,
                                 0,
-                                Number((layoutSpots.find(s => s.id === selectedSpot.id)?.layoutZ) || selectedSpot.position_y) || 0
+                                Number((selectedLayoutSpot?.layoutZ) ?? selectedSpot.position_y) || 0
                             ]}
                         />
                     )}

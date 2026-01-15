@@ -1,9 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, Index, BeforeInsert, BeforeUpdate } from 'typeorm';
 import { Reservation } from './reservation.entity';
 import { EVCharger } from './ev-charger.entity';
 import { ParkingSpot } from './parking-spot.entity';
 
 @Entity()
+@Index('idx_parking_lot_lat_lng', ['latitude', 'longitude'])
 export class ParkingLot {
   @PrimaryGeneratedColumn()
   id: number;
@@ -22,6 +23,13 @@ export class ParkingLot {
 
   @Column({ default: true })
   isAvailable: boolean;
+
+  // Dynamic pricing / demand controls
+  @Column({ default: false })
+  dynamic_pricing_enabled: boolean;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 1 })
+  surge_multiplier: number;
 
   @Column({ nullable: true })
   totalSpots: number;
@@ -69,6 +77,10 @@ export class ParkingLot {
   @Column({ type: 'decimal', precision: 10, scale: 6, nullable: true })
   longitude: number;
 
+  @Index('idx_parking_lot_geo', { spatial: true })
+  @Column({ type: 'geography', spatialFeatureType: 'Point', srid: 4326, nullable: true })
+  geo_location: { type: 'Point'; coordinates: [number, number] } | null;
+
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   distance_km: number;
 
@@ -88,4 +100,16 @@ export class ParkingLot {
 
   @OneToMany(() => ParkingSpot, (spot) => spot.parkingLot)
   spots: ParkingSpot[];
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  private syncGeoLocation() {
+    const lat = this.latitude !== null && this.latitude !== undefined ? Number(this.latitude) : null;
+    const lng = this.longitude !== null && this.longitude !== undefined ? Number(this.longitude) : null;
+    if (lat !== null && lng !== null && Number.isFinite(lat) && Number.isFinite(lng)) {
+      this.geo_location = { type: 'Point', coordinates: [lng, lat] };
+      return;
+    }
+    this.geo_location = null;
+  }
 }

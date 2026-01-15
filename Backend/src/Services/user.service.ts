@@ -34,8 +34,7 @@ export class UserService {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const users = await this.repository.getAll();
-    return users.find(u => u.email === email) || null;
+    return this.repository.getByEmail(email);
   }
 
   async validatePassword(user: User, password: string): Promise<boolean> {

@@ -14,7 +14,7 @@ jest.mock('../src/config/database.config', () => ({
   },
 }));
 
-import { ParkingService } from '../src/Services/parking.service';
+import { ParkingService } from '../src/modules/parking/parking.service';
 import { AppDataSource } from '../src/config/database.config';
 
 describe('ParkingService list reservations', () => {

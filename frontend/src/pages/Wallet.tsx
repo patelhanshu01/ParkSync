@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { Container, Typography, Box, Paper, Button, Stack, Divider, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, TextField, Chip } from '@mui/material';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Container, Typography, Box, Paper, Button, Stack, Divider, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, TextField, Chip, FormControl, FormControlLabel, Radio, RadioGroup } from '@mui/material';
 
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 import HistoryIcon from '@mui/icons-material/History';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { getWalletDetails, addFunds, WalletDetails } from '../api/walletApi';
+import { getWalletDetails, addFunds, SavedCard, WalletDetails } from '../api/walletApi';
 import { useNavigate } from 'react-router-dom';
+
+const TOP_UP_AMOUNTS = [10, 20, 50, 100];
 
 const Wallet: React.FC = () => {
     const [wallet, setWallet] = useState<WalletDetails | null>(null);
@@ -15,8 +18,14 @@ const Wallet: React.FC = () => {
     const [openTopUp, setOpenTopUp] = useState(false);
     const [topUpAmount, setTopUpAmount] = useState<string>('');
     const [processing, setProcessing] = useState(false);
+    const [topUpCardId, setTopUpCardId] = useState<number | null>(null);
+    const [topUpError, setTopUpError] = useState<string | null>(null);
 
     const navigate = useNavigate();
+    const parsedTopUpAmount = useMemo(() => {
+        const value = Number(topUpAmount);
+        return Number.isFinite(value) ? value : 0;
+    }, [topUpAmount]);
 
     const fetchWallet = async () => {
         try {
@@ -33,18 +42,47 @@ const Wallet: React.FC = () => {
         fetchWallet();
     }, []);
 
+    const transactionItems = useMemo(() => {
+        if (!wallet) return [];
+        return wallet.transactions.map((transaction) => ({
+            ...transaction,
+            dateLabel: new Date(transaction.date).toLocaleString(),
+            isCredit: transaction.type === 'credit'
+        }));
+    }, [wallet]);
+
+    const savedCards = useMemo<SavedCard[]>(() => {
+        return wallet?.savedCards ?? [];
+    }, [wallet]);
+
+    useEffect(() => {
+        if (!openTopUp) return;
+        if (savedCards.length === 0) {
+            setTopUpCardId(null);
+            return;
+        }
+        if (topUpCardId === null) {
+            const defaultCard = savedCards.find((card) => card.isDefault) || savedCards[0];
+            setTopUpCardId(defaultCard?.id ?? null);
+        }
+    }, [openTopUp, savedCards, topUpCardId]);
+
     const handleTopUp = async () => {
-        const amount = parseFloat(topUpAmount);
-        if (isNaN(amount) || amount <= 0) return;
+        if (parsedTopUpAmount <= 0) return;
+        if (savedCards.length > 0 && topUpCardId === null) {
+            setTopUpError('Select a saved card to top up your wallet.');
+            return;
+        }
 
         setProcessing(true);
         try {
-            await addFunds(amount);
+            await addFunds(parsedTopUpAmount, topUpCardId ?? undefined);
             setOpenTopUp(false);
             setTopUpAmount('');
+            setTopUpError(null);
             fetchWallet(); // Refresh balance
         } catch (err) {
-            setError('Failed to add funds. Please try again.');
+            setTopUpError('Failed to add funds. Please try again.');
         } finally {
             setProcessing(false);
         }
@@ -120,7 +158,10 @@ const Wallet: React.FC = () => {
                     color="secondary"
                     size="large"
                     startIcon={<AddCircleIcon />}
-                    onClick={() => setOpenTopUp(true)}
+                    onClick={() => {
+                        setTopUpError(null);
+                        setOpenTopUp(true);
+                    }}
                     sx={{
                         bgcolor: 'white',
                         color: 'primary.main',
@@ -135,19 +176,69 @@ const Wallet: React.FC = () => {
                 </Button>
             </Paper>
 
+            {/* Saved Cards */}
+            <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                <Typography variant="h5" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CreditCardIcon /> Saved Card Details
+                </Typography>
+                <Button size="small" variant="outlined" onClick={() => navigate('/wallet/cards')}>
+                    Add card
+                </Button>
+            </Box>
+
+            <Paper sx={{ borderRadius: 2, overflow: 'hidden', mb: 4 }}>
+                {savedCards.length === 0 ? (
+                    <Box p={4} textAlign="center">
+                        <Typography color="text.secondary">No saved cards yet.</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            Use Add card to save a payment method.
+                        </Typography>
+                    </Box>
+                ) : (
+                    <Stack divider={<Divider />}>
+                        {savedCards.map((card) => (
+                            <Box
+                                key={card.id}
+                                p={2}
+                                display="flex"
+                                justifyContent="space-between"
+                                alignItems="center"
+                            >
+                                <Box>
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                        <Typography variant="subtitle1" fontWeight="600">
+                                            {card.brand} **** {card.last4}
+                                        </Typography>
+                                        {card.isDefault && <Chip size="small" label="Default" color="success" />}
+                                    </Box>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                        Expires {card.expMonth.toString().padStart(2, '0')}/{card.expYear}
+                                    </Typography>
+                                    {card.cardholder && (
+                                        <Typography variant="caption" color="text.secondary" display="block">
+                                            {card.cardholder}
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </Box>
+                        ))}
+                    </Stack>
+                )}
+            </Paper>
+
             {/* Transactions List */}
             <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <HistoryIcon /> Transaction History
             </Typography>
 
             <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                {wallet?.transactions.length === 0 ? (
+                {transactionItems.length === 0 ? (
                     <Box p={4} textAlign="center">
                         <Typography color="text.secondary">No transactions yet.</Typography>
                     </Box>
                 ) : (
                     <Stack divider={<Divider />}>
-                        {(wallet?.transactions || []).map((transaction) => (
+                        {transactionItems.map((transaction) => (
                             <Box
                                 key={transaction.id}
                                 p={2}
@@ -159,30 +250,30 @@ const Wallet: React.FC = () => {
                                 <Box display="flex" alignItems="center" gap={2}>
                                     <Box
                                         sx={{
-                                            bgcolor: transaction.type === 'credit' ? 'success.light' : 'error.light',
+                                            bgcolor: transaction.isCredit ? 'success.light' : 'error.light',
                                             color: 'white',
                                             p: 1,
                                             borderRadius: '50%',
                                             display: 'flex'
                                         }}
                                     >
-                                        {transaction.type === 'credit' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
+                                        {transaction.isCredit ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
                                     </Box>
                                     <Box>
                                         <Typography variant="subtitle1" fontWeight="600">
                                             {transaction.description}
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            {new Date(transaction.date).toLocaleString()}
+                                            {transaction.dateLabel}
                                         </Typography>
                                     </Box>
                                 </Box>
                                 <Typography
                                     variant="h6"
                                     fontWeight="bold"
-                                    color={transaction.type === 'credit' ? 'success.main' : 'error.main'}
+                                    color={transaction.isCredit ? 'success.main' : 'error.main'}
                                 >
-                                    {transaction.type === 'credit' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                                    {transaction.isCredit ? '+' : '-'}${transaction.amount.toFixed(2)}
                                 </Typography>
                             </Box>
                         ))}
@@ -191,15 +282,28 @@ const Wallet: React.FC = () => {
             </Paper>
 
             {/* Top Up Modal */}
-            <Dialog open={openTopUp} onClose={() => setOpenTopUp(false)} maxWidth="sm" fullWidth>
+            <Dialog
+                open={openTopUp}
+                onClose={() => {
+                    setOpenTopUp(false);
+                    setTopUpError(null);
+                }}
+                maxWidth="sm"
+                fullWidth
+            >
                 <DialogTitle>Add Funds to Wallet</DialogTitle>
                 <DialogContent>
                     <Box py={2}>
+                        {topUpError && (
+                            <Alert severity="error" sx={{ mb: 2 }}>
+                                {topUpError}
+                            </Alert>
+                        )}
                         <Typography variant="body2" color="text.secondary" paragraph>
                             Select an amount to add to your parking wallet.
                         </Typography>
                         <Stack direction="row" spacing={1} mb={3}>
-                            {[10, 20, 50, 100].map((amt) => (
+                            {TOP_UP_AMOUNTS.map((amt) => (
                                 <Chip
                                     key={amt}
                                     label={`$${amt}`}
@@ -208,8 +312,70 @@ const Wallet: React.FC = () => {
                                     variant={topUpAmount === amt.toString() ? 'filled' : 'outlined'}
                                     clickable
                                 />
-                            ))}
-                        </Stack>
+                                ))}
+                            </Stack>
+
+                        {savedCards.length === 0 ? (
+                            <Box
+                                sx={{
+                                    border: '1px dashed',
+                                    borderColor: 'divider',
+                                    borderRadius: 2,
+                                    p: 2,
+                                    mb: 3,
+                                    textAlign: 'center'
+                                }}
+                            >
+                                <Typography variant="body2" color="text.secondary" gutterBottom>
+                                    No saved cards available.
+                                </Typography>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => {
+                                        setOpenTopUp(false);
+                                        navigate('/wallet/cards');
+                                    }}
+                                >
+                                    Add a card
+                                </Button>
+                            </Box>
+                        ) : (
+                            <Box sx={{ mb: 3 }}>
+                                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                                    Pay with
+                                </Typography>
+                                <FormControl component="fieldset" fullWidth>
+                                    <RadioGroup
+                                        value={topUpCardId !== null ? String(topUpCardId) : ''}
+                                        onChange={(e) => {
+                                            const value = Number(e.target.value);
+                                            if (Number.isFinite(value)) {
+                                                setTopUpCardId(value);
+                                            }
+                                        }}
+                                    >
+                                        {savedCards.map((card) => (
+                                            <FormControlLabel
+                                                key={card.id}
+                                                value={String(card.id)}
+                                                control={<Radio />}
+                                                label={
+                                                    <Box>
+                                                        <Typography fontWeight={600}>
+                                                            {card.brand} **** {card.last4}
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Expires {card.expMonth.toString().padStart(2, '0')}/{card.expYear}
+                                                        </Typography>
+                                                    </Box>
+                                                }
+                                            />
+                                        ))}
+                                    </RadioGroup>
+                                </FormControl>
+                            </Box>
+                        )}
                         <TextField
                             label="Amount ($)"
                             type="number"
@@ -225,9 +391,9 @@ const Wallet: React.FC = () => {
                             size="large"
                             sx={{ mt: 3 }}
                             onClick={handleTopUp}
-                            disabled={!topUpAmount || parseFloat(topUpAmount) < 5 || processing}
+                            disabled={!topUpAmount || parsedTopUpAmount < 5 || processing || savedCards.length === 0 || topUpCardId === null}
                         >
-                            {processing ? 'Processing...' : `Pay $${parseFloat(topUpAmount || '0').toFixed(2)}`}
+                            {processing ? 'Processing...' : `Pay $${parsedTopUpAmount.toFixed(2)}`}
                         </Button>
                     </Box>
                 </DialogContent>

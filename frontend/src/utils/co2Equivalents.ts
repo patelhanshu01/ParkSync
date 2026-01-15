@@ -50,7 +50,28 @@ export const getCO2Equivalents = (grams: number): CO2Equivalent[] => {
 };
 
 export const getRandomEquivalent = (grams: number): CO2Equivalent | null => {
-    const equivalents = getCO2Equivalents(grams);
-    if (equivalents.length === 0) return null;
-    return equivalents[Math.floor(Math.random() * equivalents.length)];
+    if (grams <= 0) return null;
+    const pick = Math.floor(Math.random() * 3);
+    if (pick === 0) {
+        return {
+            value: Math.round(grams / CONVERSIONS.SMARTPHONE_CHARGE),
+            unit: 'phone charges',
+            description: 'smartphone charges',
+            icon: '📱'
+        };
+    }
+    if (pick === 1) {
+        return {
+            value: Math.round(grams / CONVERSIONS.LED_BULB_HOUR),
+            unit: 'bulb hours',
+            description: 'hours of LED light',
+            icon: '💡'
+        };
+    }
+    return {
+        value: Number((grams / CONVERSIONS.TREE_DAY).toFixed(1)),
+        unit: 'tree days',
+        description: "days of a tree's CO₂ absorption",
+        icon: '🌳'
+    };
 };

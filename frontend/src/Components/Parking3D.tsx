@@ -16,6 +16,7 @@ const statusColors: Record<string, string> = {
   reserved: '#f5a524',
   occupied: '#ef4444'
 };
+const STATUS_CHOICES = ['available', 'occupied', 'reserved'];
 
 const AnimatedCar: React.FC<{ curve: THREE.CatmullRomCurve3; offset: number; color: string }> = ({ curve, offset, color }) => {
   const ref = useRef<THREE.Group>(null);
@@ -52,17 +53,31 @@ const AnimatedCar: React.FC<{ curve: THREE.CatmullRomCurve3; offset: number; col
 function ProceduralParking({ rows = 3, cols = 6, carCount = 3, groupRef, onSpotSelect, initialSpots, selectedSpotId }: { rows?: number; cols?: number; carCount?: number; groupRef: React.RefObject<THREE.Group>; onSpotSelect?: (spot: any) => void; initialSpots?: any[]; selectedSpotId?: number | null }) {
   // Create spot metadata (id, number, status). Use initialSpots if provided, else generate demo data
   const spotsMeta = useMemo(() => {
-    const arr: any[] = [];
+    const total = rows * cols;
+    const arr = new Array(total);
     let idCounter = 1000;
+    let idx = 0;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const statusChoices = ['available', 'occupied', 'reserved'];
-        const status = initialSpots?.[r * cols + c]?.status || statusChoices[Math.floor(Math.random() * 3)];
-        arr.push({ id: initialSpots?.[r * cols + c]?.id || idCounter++, spot_number: `${String.fromCharCode(65 + r)}${c + 1}`, x: c * 2.8, z: r * 5.2, status });
+        const spotIndex = r * cols + c;
+        const status = initialSpots?.[spotIndex]?.status || STATUS_CHOICES[Math.floor(Math.random() * STATUS_CHOICES.length)];
+        arr[idx++] = {
+          id: initialSpots?.[spotIndex]?.id || idCounter++,
+          spot_number: `${String.fromCharCode(65 + r)}${c + 1}`,
+          x: c * 2.8,
+          z: r * 5.2,
+          status
+        };
       }
     }
     return arr;
   }, [rows, cols, initialSpots]);
+
+  const carOffsets = useMemo(() => {
+    const arr = new Array(carCount);
+    for (let i = 0; i < carCount; i++) arr[i] = i;
+    return arr;
+  }, [carCount]);
 
   const laneCurve = useMemo(() => {
     const padding = 4;
@@ -149,7 +164,7 @@ function ProceduralParking({ rows = 3, cols = 6, carCount = 3, groupRef, onSpotS
       })}
 
       {/* moving hero lane cars */}
-      {Array.from({ length: carCount }).map((_, i) => (
+      {carOffsets.map((i) => (
         <AnimatedCar key={`car-${i}`} curve={laneCurve} offset={i / carCount} color={i % 2 === 0 ? '#06b6d4' : '#8b5cf6'} />
       ))}
 

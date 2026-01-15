@@ -20,10 +20,14 @@ export const compareLots = async (req: Request, res: Response) => {
         }
 
         // Mock data for now - in real app, fetch from DB
-        const lots = lot_ids.map(id => ({
-            id,
-            co2_estimated_g: Math.random() * 500 // Random for demo
-        }));
+        const lots = new Array(lot_ids.length);
+        for (let i = 0; i < lot_ids.length; i++) {
+            const id = lot_ids[i];
+            lots[i] = {
+                id,
+                co2_estimated_g: Math.random() * 500 // Random for demo
+            };
+        }
 
         const result = service.compareLots(lots);
         res.json(result);

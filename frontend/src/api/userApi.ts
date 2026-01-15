@@ -1,19 +1,19 @@
-import axios from 'axios';
+import apiClient from './client';
 import { User } from '../types/User';
 
-const API = 'http://localhost:3000/api/user';
+const USER_BASE = '/user';
 
 export const getUsers = () =>
-  axios.get<User[]>(API);
+  apiClient.get<User[]>(USER_BASE);
 
 export const getUserById = (id: number) =>
-  axios.get<User>(`${API}/${id}`);
+  apiClient.get<User>(`${USER_BASE}/${id}`);
 
 export const createUser = (body: User) =>
-  axios.post<User>(API, body);
+  apiClient.post<User>(USER_BASE, body);
 
 export const updateUser = (id: number, body: User) =>
-  axios.put<User>(`${API}/${id}`, body);
+  apiClient.put<User>(`${USER_BASE}/${id}`, body);
 
 export const deleteUser = (id: number) =>
-  axios.delete(`${API}/${id}`);
+  apiClient.delete(`${USER_BASE}/${id}`);

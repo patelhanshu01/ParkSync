@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Container,
-    Box,
     TextField,
     Button,
     Typography,
@@ -14,7 +13,9 @@ import { createListing } from '../../api/listingApi';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../../Components/MainLayout';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+
+const FALLBACK_IMAGE =
+    'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80';
 
 const AdminCreateListing: React.FC = () => {
     const [title, setTitle] = useState('');
@@ -30,6 +31,19 @@ const AdminCreateListing: React.FC = () => {
     const [payoutEmail, setPayoutEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const isSaveDisabled = useMemo(() => {
+        return (
+            loading ||
+            !title ||
+            !price ||
+            !address ||
+            !accountName ||
+            !bankName ||
+            !accountNumber ||
+            !routingNumber ||
+            !payoutEmail
+        );
+    }, [loading, title, price, address, accountName, bankName, accountNumber, routingNumber, payoutEmail]);
 
     const handleSave = async () => {
         setLoading(true);
@@ -47,13 +61,13 @@ const AdminCreateListing: React.FC = () => {
                 pricePerHour: Number(price) || 0,
                 location,
                 address,
-                imageUrl: imageUrl || 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80',
+                imageUrl: imageUrl || FALLBACK_IMAGE,
                 isActive: true,
                 isPrivate: true,
                 contact_info: JSON.stringify({ payoutInfo })
             };
             await createListing(body as any);
-            navigate('/admin/listings');
+            navigate('/host/listings');
         } catch (e) {
             console.error('Failed to create listing', e);
         } finally {
@@ -66,7 +80,7 @@ const AdminCreateListing: React.FC = () => {
             <Container maxWidth="md" sx={{ py: 6 }}>
                 <Button
                     startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate('/admin/listings')}
+                    onClick={() => navigate('/host/listings')}
                     sx={{ mb: 4, color: 'text.secondary' }}
                 >
                     Back to Listings
@@ -107,7 +121,10 @@ const AdminCreateListing: React.FC = () => {
                                 label="Price per Hour"
                                 type="number"
                                 value={price}
-                                onChange={e => setPrice(Number(e.target.value))}
+                                onChange={e => {
+                                    const value = e.target.value;
+                                    setPrice(value === '' ? '' : Number(value));
+                                }}
                                 fullWidth
                                 InputProps={{
                                     startAdornment: <InputAdornment position="start">$</InputAdornment>,
@@ -201,17 +218,7 @@ const AdminCreateListing: React.FC = () => {
                             <Button
                                 variant="contained"
                                 onClick={handleSave}
-                                disabled={
-                                    loading ||
-                                    !title ||
-                                    !price ||
-                                    !address ||
-                                    !accountName ||
-                                    !bankName ||
-                                    !accountNumber ||
-                                    !routingNumber ||
-                                    !payoutEmail
-                                }
+                                disabled={isSaveDisabled}
                                 fullWidth
                                 sx={{
                                     py: 2,

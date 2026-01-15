@@ -13,10 +13,7 @@ import {
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import StorefrontIcon from '@mui/icons-material/Storefront';
 import AddLocationIcon from '@mui/icons-material/AddLocation';
-import EqualizerIcon from '@mui/icons-material/Equalizer';
-import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import ParkingIcon from '@mui/icons-material/LocalParking';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +21,17 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 
 const DRAWER_WIDTH = 240;
+const MENU_SECTIONS = [
+    {
+        section: 'Host Portal',
+        key: 'adminPortal',
+        items: [
+            { text: 'Dashboard', icon: <DashboardIcon />, path: '/host/dashboard' },
+            { text: 'Your Listing', icon: <ParkingIcon />, path: '/host/listings' },
+            { text: 'Create Listing', icon: <AddLocationIcon />, path: '/host/create' },
+        ],
+    },
+];
 
 interface SidebarProps {
     open: boolean;
@@ -49,18 +57,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
     };
 
     const isActive = (path: string) => location.pathname === path;
-
-    const menuItems = [
-        {
-            section: 'Admin Portal',
-            key: 'adminPortal',
-            items: [
-                { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin/dashboard' },
-                { text: 'Your Listing', icon: <ParkingIcon />, path: '/admin/listings' },
-                { text: 'Create Listing', icon: <AddLocationIcon />, path: '/admin/create' },
-            ],
-        },
-    ];
 
     return (
         <Drawer
@@ -97,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             <Divider sx={{ my: 1 }} />
 
             <List sx={{ px: 2 }}>
-                {menuItems.map((section) => (
+                {MENU_SECTIONS.map((section) => (
                     <Box key={section.key}>
                         <ListItemButton
                             onClick={() => handleToggle(section.key)}

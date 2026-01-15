@@ -1,23 +1,44 @@
-import axios from 'axios';
+import apiClient from './client';
 
-// Use same base URL as other APIs (adjust if needed based on your setup)
-const API_URL = 'http://localhost:3000/api/reservation';
+// Helper to keep paths relative to the base URL
+const RESERVATION_BASE = '/reservation';
 
 export interface Reservation {
   id: number;
   startTime: string; // ISO string
   endTime: string;   // ISO string
-  parkingLot: {
+  reservedEndTime?: string;
+  autoExtendEnabled?: boolean;
+  autoExtendIntervalMinutes?: number;
+  autoExtendCapMinutes?: number;
+  reminderSentAt?: string | null;
+  endedAt?: string | null;
+  co2_estimated_g?: number;
+  contactName?: string;
+  contactEmail?: string;
+  parkingLot?: {
     id: number;
     name: string;
     location: string;
     rate_hourly_cad: number;
     pricePerHour?: number; // Add optional if backend returns this too
+    distance_km?: number;
+  };
+  listing?: {
+    id: number;
+    title?: string;
+    address?: string;
+    location?: string;
+    latitude?: number;
+    longitude?: number;
+    distance_km?: number;
+    pricePerHour?: number | string;
   };
   payments: {
     id: number;
     amount: number;
     status: string;
+    method?: string;
   }[];
   spot?: {
     id: number;
@@ -28,26 +49,27 @@ export interface Reservation {
   status?: 'active' | 'completed' | 'cancelled' | 'upcoming'; // derived often on frontend or backend
 }
 
-// Create a configured axios instance
-const reservationAxios = axios.create({
-  baseURL: API_URL
-});
-
-// Add interceptor to add token to requests
-reservationAxios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 export const getMyBookings = async (): Promise<Reservation[]> => {
-  const response = await reservationAxios.get<Reservation[]>('/my-bookings');
+  const response = await apiClient.get<Reservation[]>(`${RESERVATION_BASE}/my-bookings`);
   return response.data;
 };
 
 export const createReservation = async (data: any): Promise<Reservation> => {
-  const response = await reservationAxios.post<Reservation>('/', data);
+  const response = await apiClient.post<Reservation>(`${RESERVATION_BASE}/`, data);
+  return response.data;
+};
+
+export const setAutoExtend = async (reservationId: number, payload: { enabled: boolean; intervalMinutes?: number; capMinutes?: number }) => {
+  const response = await apiClient.post<Reservation>(`${RESERVATION_BASE}/${reservationId}/auto-extend`, payload);
+  return response.data;
+};
+
+export const extendReservation = async (reservationId: number, minutes: number) => {
+  const response = await apiClient.post<Reservation>(`${RESERVATION_BASE}/${reservationId}/extend`, { minutes });
+  return response.data;
+};
+
+export const endReservation = async (reservationId: number) => {
+  const response = await apiClient.post<Reservation>(`${RESERVATION_BASE}/${reservationId}/end`);
   return response.data;
 };

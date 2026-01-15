@@ -49,6 +49,17 @@ const queueItems = [
     { label: 'Upload Lot Photos', value: 'Next 6 hrs' },
     { label: 'Renewal Package', value: 'Next 6 hrs' },
 ];
+const topLots = [
+    { name: 'Downtown Central', score: 98, color: '#00d4aa' },
+    { name: 'Maple Avenue', score: 92, color: '#5fb3f6' },
+    { name: 'Tech Central', score: 75, color: '#ffa502' }
+];
+const recentActivities = [
+    { action: 'New booking', location: 'Downtown Central', time: '2 min ago' },
+    { action: 'Spot released', location: 'Maple Avenue', time: '15 min ago' },
+    { action: 'Payment received', location: 'Tech Central', time: '1 hour ago' },
+    { action: 'New listing', location: 'Eco-Park', time: '2 hours ago' }
+];
 
 // Custom circular progress component
 const CircularProgressWithLabel: React.FC<{ value: number; color: string; label: string; subtitle: string }> = ({
@@ -112,8 +123,8 @@ const Dashboard: React.FC = () => {
             <Container maxWidth="xl" sx={{ py: 4 }}>
                 {/* Top Metrics */}
                 <Grid container spacing={3} sx={{ mb: 4 }}>
-                    {stats.map((stat, index) => (
-                        <Grid size={{ xs: 12, md: 4 }} key={index}>
+                    {stats.map((stat) => (
+                        <Grid size={{ xs: 12, md: 4 }} key={stat.label}>
                             <Paper elevation={0} sx={{
                                 p: 4,
                                 borderRadius: 3,
@@ -141,13 +152,13 @@ const Dashboard: React.FC = () => {
                         <Paper elevation={0} sx={{ p: 3, borderRadius: 3, height: '100%' }}>
                             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Queue Management</Typography>
                             <Box>
-                                {queueItems.map((item, i) => (
-                                    <Box key={i} sx={{ mb: 2 }}>
+                                {queueItems.map((item) => (
+                                    <Box key={item.label} sx={{ mb: 2 }}>
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                                             <Typography variant="body2" color="text.secondary">{item.label}</Typography>
                                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.value}</Typography>
                                         </Box>
-                                        {i < queueItems.length - 1 && <Divider sx={{ my: 1.5 }} />}
+                                        {item.label !== queueItems[queueItems.length - 1].label && <Divider sx={{ my: 1.5 }} />}
                                     </Box>
                                 ))}
                             </Box>
@@ -173,12 +184,8 @@ const Dashboard: React.FC = () => {
                             <Divider sx={{ my: 2 }} />
 
                             <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>Top Performing Lots</Typography>
-                            {[
-                                { name: 'Downtown Central', score: 98, color: '#00d4aa' },
-                                { name: 'Maple Avenue', score: 92, color: '#5fb3f6' },
-                                { name: 'Tech Central', score: 75, color: '#ffa502' }
-                            ].map((lot, i) => (
-                                <Box key={i} sx={{ mb: 2 }}>
+                            {topLots.map((lot) => (
+                                <Box key={lot.name} sx={{ mb: 2 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                                         <Typography variant="caption">{lot.name}</Typography>
                                         <Typography variant="caption" sx={{ fontWeight: 700 }}>{lot.score}%</Typography>
@@ -203,13 +210,8 @@ const Dashboard: React.FC = () => {
                         <Paper elevation={0} sx={{ p: 3, borderRadius: 3, height: '100%' }}>
                             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Recent Activity</Typography>
                             <Box>
-                                {[
-                                    { action: 'New booking', location: 'Downtown Central', time: '2 min ago' },
-                                    { action: 'Spot released', location: 'Maple Avenue', time: '15 min ago' },
-                                    { action: 'Payment received', location: 'Tech Central', time: '1 hour ago' },
-                                    { action: 'New listing', location: 'Eco-Park', time: '2 hours ago' },
-                                ].map((activity, i) => (
-                                    <Box key={i} sx={{ mb: 2, pb: 2, borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}>
+                                {recentActivities.map((activity, i) => (
+                                    <Box key={`${activity.action}-${activity.time}`} sx={{ mb: 2, pb: 2, borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}>
                                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{activity.action}</Typography>
                                         <Typography variant="caption" color="text.secondary">{activity.location}</Typography>
                                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>

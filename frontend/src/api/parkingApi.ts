@@ -1,7 +1,7 @@
-import axios from 'axios';
+import apiClient from './client';
 import { ParkingLot } from '../types/Parking';
 
-const API = 'http://localhost:3000/api/parking';
+const PARKING_BASE = '/parking';
 
 export interface SearchParams {
   lat?: number;
@@ -9,6 +9,9 @@ export interface SearchParams {
   radius?: number;
   search?: string;
   includeReservations?: boolean;
+  sort_by?: 'price_asc' | 'price_desc' | 'distance_asc' | 'distance_desc';
+  page?: number;
+  limit?: number;
 }
 
 export interface SearchResponse {
@@ -17,19 +20,25 @@ export interface SearchResponse {
     lat: number;
     lng: number;
   };
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export const getParkingLots = (params?: SearchParams) =>
-  axios.get<SearchResponse>(API, { params });
+  apiClient.get<SearchResponse>(PARKING_BASE, { params });
 
 export const getParkingLotById = (id: number, params?: { includeReservations?: boolean }) =>
-  axios.get<ParkingLot>(`${API}/${id}`, { params });
+  apiClient.get<ParkingLot>(`${PARKING_BASE}/${id}`, { params });
 
 export const createParkingLot = (body: ParkingLot) =>
-  axios.post<ParkingLot>(API, body);
+  apiClient.post<ParkingLot>(PARKING_BASE, body);
 
 export const updateParkingLot = (id: number, body: ParkingLot) =>
-  axios.put<ParkingLot>(`${API}/${id}`, body);
+  apiClient.put<ParkingLot>(`${PARKING_BASE}/${id}`, body);
 
 export const deleteParkingLot = (id: number) =>
-  axios.delete(`${API}/${id}`);
+  apiClient.delete(`${PARKING_BASE}/${id}`);

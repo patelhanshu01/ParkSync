@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Container,
@@ -10,50 +10,36 @@ import {
     Paper,
     Divider,
     Stack,
-    Chip,
-    Alert
+    Chip
 } from '@mui/material';
 import { QRCodeSVG } from 'qrcode.react';
 import { ParkingLot, ParkingSpot } from '../types/Parking';
-import { GoogleMap, MarkerF, DirectionsRenderer, useJsApiLoader } from '@react-google-maps/api';
+import { Listing } from '../types/Listing';
+import EmbeddedNavigation from '../Components/EmbeddedNavigation';
 
 const PaymentSuccess: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const state = location.state as {
-        lot: ParkingLot;
-        selectedSpot: ParkingSpot;
+        lot?: ParkingLot;
+        listing?: Listing;
+        selectedSpot?: ParkingSpot;
         duration: number;
         totalCost: number;
         reservationId: string;
     } | null;
 
-    const { isLoaded: mapLoaded } = useJsApiLoader({
-        id: 'google-map-script',
-        googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '',
-        libraries: ['places']
-    });
-
-    const mapRef = useRef<google.maps.Map | null>(null);
-    const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
-    const [navError, setNavError] = useState<string | null>(null);
-    const [etaText, setEtaText] = useState<string | null>(null);
-    const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
-    const [watchId, setWatchId] = useState<number | null>(null);
-    const recalcRef = useRef<number>(0);
-
-    const destination = state?.lot?.latitude && state.lot.longitude
-        ? { lat: Number(state.lot.latitude), lng: Number(state.lot.longitude) }
-        : null;
-
-    useEffect(() => {
-        if (watchId !== null) {
-            return () => {
-                navigator.geolocation.clearWatch(watchId);
-            };
+    const deriveDestination = () => {
+        if (state?.lot?.latitude && state?.lot?.longitude) {
+            return { lat: Number(state.lot.latitude), lng: Number(state.lot.longitude) };
         }
-        return;
-    }, [watchId]);
+        if (state?.listing?.latitude && state?.listing?.longitude) {
+            return { lat: Number(state.listing.latitude), lng: Number(state.listing.longitude) };
+        }
+        return null;
+    };
+
+    const [destination] = useState<{ lat: number; lng: number } | null>(deriveDestination);
 
     if (!state) {
         return (
@@ -66,72 +52,12 @@ const PaymentSuccess: React.FC = () => {
         );
     }
 
-    const { lot, selectedSpot, duration, totalCost, reservationId } = state;
+    const { lot, listing, selectedSpot, duration, totalCost, reservationId } = state;
 
-    const startNavigation = () => {
-        setNavError(null);
-        setEtaText(null);
-        setDirections(null);
-        if (!destination) {
-            setNavError('No coordinates for this parking lot.');
-            return;
-        }
-        if (!navigator.geolocation) {
-            setNavError('Geolocation is not supported on this device.');
-            return;
-        }
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                setUserPos(origin);
-                calculateRoute(origin);
-                const id = navigator.geolocation.watchPosition(
-                    (p) => {
-                        const current = { lat: p.coords.latitude, lng: p.coords.longitude };
-                        setUserPos(current);
-                        const now = Date.now();
-                        if (now - recalcRef.current > 15000) {
-                            recalcRef.current = now;
-                            calculateRoute(current);
-                        }
-                    },
-                    () => setNavError('Location permission denied. Enable location to get turn-by-turn directions.'),
-                    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
-                );
-                setWatchId(id);
-            },
-            () => setNavError('Location permission denied. Enable location to get turn-by-turn directions.')
-        );
-    };
-
-    const calculateRoute = (origin: { lat: number; lng: number }) => {
-        if (!window.google?.maps || !destination) {
-            setNavError('Maps SDK not loaded. Please try again.');
-            return;
-        }
-        const service = new google.maps.DirectionsService();
-        service.route(
-            {
-                origin,
-                destination,
-                travelMode: google.maps.TravelMode.DRIVING
-            },
-            (result, status) => {
-                if (status === google.maps.DirectionsStatus.OK && result) {
-                    setDirections(result);
-                    const leg = result.routes[0]?.legs?.[0];
-                    if (leg?.duration?.text) setEtaText(leg.duration.text);
-                    if (mapRef.current) {
-                        mapRef.current.setCenter(leg?.end_location || destination);
-                        mapRef.current.setZoom(14);
-                        mapRef.current.setTilt(67.5);
-                        mapRef.current.setHeading(25);
-                    }
-                } else {
-                    setNavError('Unable to fetch directions. Try again.');
-                }
-            }
-        );
+    const buildExternalDirections = () => {
+        if (!destination) return '';
+        const name = encodeURIComponent(lot?.name || listing?.title || 'Destination');
+        return `https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lng}&destination_place_id=${name}`;
     };
 
     return (
@@ -166,13 +92,15 @@ const PaymentSuccess: React.FC = () => {
                         <Box sx={{ mt: 3, display: 'grid', gap: 1.5 }}>
                             <Stack direction="row" justifyContent="space-between">
                                 <Typography variant="body2" sx={{ opacity: 0.8 }}>Location</Typography>
-                                <Typography fontWeight={700}>{lot.name}</Typography>
+                                <Typography fontWeight={700}>{lot?.name || listing?.title}</Typography>
                             </Stack>
-                            <Stack direction="row" justifyContent="space-between">
-                                <Typography variant="body2" sx={{ opacity: 0.8 }}>Spot</Typography>
-                                <Typography fontWeight={700}>{selectedSpot.spot_number}</Typography>
-                            </Stack>
-                            {selectedSpot.floor_level !== undefined && (
+                            {selectedSpot && (
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Spot</Typography>
+                                    <Typography fontWeight={700}>{selectedSpot.spot_number}</Typography>
+                                </Stack>
+                            )}
+                            {selectedSpot?.floor_level !== undefined && (
                                 <Stack direction="row" justifyContent="space-between">
                                     <Typography variant="body2" sx={{ opacity: 0.8 }}>Level</Typography>
                                     <Typography fontWeight={700}>{selectedSpot.floor_level > 0 ? `Floor ${selectedSpot.floor_level}` : 'Ground'}</Typography>
@@ -205,43 +133,29 @@ const PaymentSuccess: React.FC = () => {
                     <CardContent sx={{ display: 'grid', gap: 2 }}>
                         <Typography variant="h6" fontWeight={700}>Get there</Typography>
                         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                            {destination && mapLoaded ? (
-                                <Box sx={{ position: 'relative', height: 260, borderRadius: 2, overflow: 'hidden' }}>
-                                    <GoogleMap
-                                        mapContainerStyle={{ width: '100%', height: '100%' }}
-                                        center={destination}
-                                        zoom={16}
-                                        options={{
-                                            disableDefaultUI: true,
-                                            zoomControl: true,
-                                            mapTypeId: 'roadmap',
-                                            gestureHandling: 'greedy'
-                                        }}
-                                        onLoad={(map) => {
-                                            mapRef.current = map;
-                                        }}
-                                    >
-                                        {userPos && <MarkerF position={userPos} />}
-                                        <MarkerF position={destination} />
-                                        {directions && <DirectionsRenderer directions={directions} />}
-                                    </GoogleMap>
-                                    <Box sx={{ position: 'absolute', top: 10, right: 10, bgcolor: 'rgba(0,0,0,0.6)', color: 'white', px: 1.5, py: 0.5, borderRadius: 1 }}>
-                                        <Typography variant="caption">
-                                            ETA: {etaText ? etaText : '—'}
-                                        </Typography>
-                                    </Box>
-                                </Box>
+                            {destination || listing?.address || listing?.location ? (
+                                <EmbeddedNavigation
+                                    destination={{
+                                        lat: destination?.lat,
+                                        lng: destination?.lng,
+                                        name: lot?.name || listing?.title || 'Destination',
+                                        address: listing?.address || listing?.location || lot?.location
+                                    }}
+                                />
                             ) : (
                                 <Typography variant="body2" color="text.secondary">
-                                    Navigation map unavailable. {destination ? 'Try again later.' : 'No coordinates provided.'}
+                                    Navigation map unavailable. No coordinates or address provided.
                                 </Typography>
                             )}
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }}>
                                 <Button
                                     variant="contained"
                                     fullWidth
-                                    onClick={startNavigation}
-                                    disabled={!destination || !mapLoaded}
+                                    onClick={() => {
+                                        const link = buildExternalDirections();
+                                        if (link) window.open(link, '_blank');
+                                    }}
+                                    disabled={!destination && !(listing?.address || listing?.location)}
                                 >
                                     Start navigation
                                 </Button>
@@ -253,16 +167,6 @@ const PaymentSuccess: React.FC = () => {
                                     Save for later
                                 </Button>
                             </Stack>
-                            {etaText && (
-                                <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
-                                    ETA: {etaText}
-                                </Typography>
-                            )}
-                            {navError && (
-                                <Alert severity="warning" sx={{ mt: 1 }}>
-                                    {navError}
-                                </Alert>
-                            )}
                             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                                 Turn on location to see a live route from your current position to this lot.
                             </Typography>

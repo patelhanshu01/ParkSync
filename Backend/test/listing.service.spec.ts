@@ -13,7 +13,7 @@ jest.mock('../src/config/database.config', () => ({
   },
 }));
 
-import { ListingService } from '../src/Services/listing.service';
+import { ListingService } from '../src/modules/listings/listing.service';
 import { AppDataSource } from '../src/config/database.config';
 
 describe('ListingService', () => {

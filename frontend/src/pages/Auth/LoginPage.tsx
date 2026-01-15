@@ -12,8 +12,6 @@ import {
     Link,
     InputAdornment,
     IconButton,
-    Switch,
-    FormControlLabel,
     Divider,
     Chip,
     Stack
@@ -40,11 +38,28 @@ const glow = keyframes`
   100% { box-shadow: 0 0 0px 0 rgba(56, 189, 248, 0.3); }
 `;
 
+const HERO_SLIDES = [
+    {
+        title: 'Find the best bay fast',
+        desc: 'Realtime availability with smart recommendations for your vehicle type.',
+        badge: 'Smart search'
+    },
+    {
+        title: 'Scan, pay, glide out',
+        desc: 'One-tap payments and QR passes keep your exit smooth and quick.',
+        badge: 'Frictionless'
+    },
+    {
+        title: 'Multi-floor ready',
+        desc: 'Navigate between levels with guided arrows and clear labels.',
+        badge: 'Guided'
+    }
+];
+
 const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [isAdmin, setIsAdmin] = useState(false);
     const { login, googleLogin, error } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -54,19 +69,12 @@ const LoginPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const user = await login({ email, password });
-
-            // Check if user is logging in with correct intent
-            if (isAdmin && user.role !== 'admin') {
-                // User trying to access admin dashboard but is NOT admin
-                // We could logout, or just redirect them to user dashboard with a warning?
-                // For now, let's just respect the role
-                navigate('/');
-            } else if (user.role === 'admin') {
-                navigate('/admin/dashboard');
-            } else {
-                navigate(from === '/login' || from === '/' ? '/' : from, { replace: true });
-            }
+            await login({ email, password });
+            const target =
+                from && from !== '/login' && from !== '/signup' && from !== '/'
+                    ? from
+                    : '/';
+            navigate(target, { replace: true });
         } catch (err) {
             // Error handling is managed by AuthContext
         }
@@ -92,23 +100,7 @@ const LoginPage: React.FC = () => {
                         autoplay={{ delay: 3800, disableOnInteraction: false }}
                         style={{ height: '100%' }}
                     >
-                        {[
-                            {
-                                title: 'Find the best bay fast',
-                                desc: 'Realtime availability with smart recommendations for your vehicle type.',
-                                badge: 'Smart search'
-                            },
-                            {
-                                title: 'Scan, pay, glide out',
-                                desc: 'One-tap payments and QR passes keep your exit smooth and quick.',
-                                badge: 'Frictionless'
-                            },
-                            {
-                                title: 'Multi-floor ready',
-                                desc: 'Navigate between levels with guided arrows and clear labels.',
-                                badge: 'Guided'
-                            }
-                        ].map((slide, idx) => (
+                        {HERO_SLIDES.map((slide, idx) => (
                             <SwiperSlide key={idx}>
                                 <Box
                                     sx={{
@@ -216,7 +208,7 @@ const LoginPage: React.FC = () => {
 
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-                    <Box component="form" onSubmit={handleSubmit} noValidate>
+                    <Box component="form" onSubmit={handleSubmit}>
                         <TextField
                             margin="normal"
                             required
@@ -255,17 +247,6 @@ const LoginPage: React.FC = () => {
                             }}
                         />
 
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={isAdmin}
-                                    onChange={(e) => setIsAdmin(e.target.checked)}
-                                    color="primary"
-                                />
-                            }
-                            label="Sign in as Admin"
-                            sx={{ mt: 1 }}
-                        />
                         <Button
                             type="submit"
                             fullWidth
@@ -287,7 +268,13 @@ const LoginPage: React.FC = () => {
                                 onSuccess={credentialResponse => {
                                     if (credentialResponse.credential) {
                                         googleLogin(credentialResponse.credential)
-                                            .then(() => navigate(from, { replace: true }))
+                                            .then(() => {
+                                                const target =
+                                                    from && from !== '/login' && from !== '/signup' && from !== '/'
+                                                        ? from
+                                                        : '/';
+                                                navigate(target, { replace: true });
+                                            })
                                             .catch((err) => console.error("Google Login Error", err));
                                     }
                                 }}

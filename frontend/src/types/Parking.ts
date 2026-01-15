@@ -43,6 +43,7 @@ export interface ParkingSpot {
   spot_number: string;
   status: 'available' | 'occupied' | 'reserved' | 'ev_charging' | 'accessibility';
   type?: string;
+  pricePerHour?: number;
   floor_level?: number;
   position_x?: number;
   position_y?: number;

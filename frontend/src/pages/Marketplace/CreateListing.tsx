@@ -1,12 +1,14 @@
 import React from 'react';
 
+const containerStyle: React.CSSProperties = { padding: '24px' };
+
 const CreateListing: React.FC = () => {
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={containerStyle}>
       <h2>Marketplace Listing</h2>
       <p>Listing creation UI is coming soon.</p>
     </div>
   );
 };
 
-export default CreateListing;
+export default React.memo(CreateListing);

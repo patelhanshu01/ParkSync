@@ -18,7 +18,12 @@ export async function seedMarketplace() {
     }
 
     // Clear existing listings for this user to ensure we only have the new residential ones
-    await listingRepo.delete({ owner: { id: user.id } });
+    // Skip delete if reservations reference these listings to avoid FK violations
+    try {
+        await listingRepo.delete({ owner: { id: user.id } });
+    } catch {
+        // noop
+    }
 
     const mockListings = [
         {
@@ -80,6 +85,4 @@ export async function seedMarketplace() {
             await listingRepo.save(newListing);
         }
     }
-
-    console.log('Marketplace seeded with 5 mock listings.');
 }

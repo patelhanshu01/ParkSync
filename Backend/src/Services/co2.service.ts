@@ -33,20 +33,25 @@ export class CO2Service {
     } {
         if (lots.length === 0) return {};
 
-        const co2Values = lots.map(lot => lot.co2_estimated_g);
-        const maxCO2 = Math.max(...co2Values);
-        const minCO2 = Math.min(...co2Values);
+        let maxCO2 = -Infinity;
+        let minCO2 = Infinity;
+        for (let i = 0; i < lots.length; i++) {
+            const value = lots[i].co2_estimated_g;
+            if (value > maxCO2) maxCO2 = value;
+            if (value < minCO2) minCO2 = value;
+        }
 
         const result: { [key: number]: { estimated_g: number; savings_pct: number; is_lowest: boolean } } = {};
 
-        lots.forEach(lot => {
+        for (let i = 0; i < lots.length; i++) {
+            const lot = lots[i];
             const savings_pct = maxCO2 > 0 ? ((maxCO2 - lot.co2_estimated_g) / maxCO2) * 100 : 0;
             result[lot.id] = {
                 estimated_g: lot.co2_estimated_g,
                 savings_pct,
                 is_lowest: lot.co2_estimated_g === minCO2
             };
-        });
+        }
 
         return result;
     }

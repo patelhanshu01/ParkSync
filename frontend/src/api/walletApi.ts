@@ -1,18 +1,6 @@
-import axios from 'axios';
+import apiClient from './client';
 
-const API_URL = 'http://localhost:3000/api/wallet';
-
-const walletAxios = axios.create({
-    baseURL: API_URL
-});
-
-walletAxios.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
+const WALLET_BASE = '/wallet';
 
 export interface Transaction {
     id: number;
@@ -23,18 +11,55 @@ export interface Transaction {
     reservation_id?: number;
 }
 
+export interface SavedCard {
+    id: number;
+    brand: string;
+    last4: string;
+    expMonth: number;
+    expYear: number;
+    cardholder?: string;
+    isDefault?: boolean;
+}
+
 export interface WalletDetails {
     balance: number;
     currency: string;
     transactions: Transaction[];
+    savedCards?: SavedCard[];
+}
+
+export interface CreateSavedCardInput {
+    brand: string;
+    last4: string;
+    expMonth: number;
+    expYear: number;
+    cardholder?: string;
+    isDefault?: boolean;
 }
 
 export const getWalletDetails = async (): Promise<WalletDetails> => {
-    const response = await walletAxios.get<WalletDetails>('/');
+    const response = await apiClient.get<WalletDetails>(`${WALLET_BASE}/`);
     return response.data;
 };
 
-export const addFunds = async (amount: number): Promise<{ success: boolean; new_balance: number }> => {
-    const response = await walletAxios.post<{ success: boolean; new_balance: number }>('/top-up', { amount });
+export const addFunds = async (amount: number, cardId?: number): Promise<{ success: boolean; new_balance: number }> => {
+    const payload: { amount: number; cardId?: number } = { amount };
+    if (cardId) {
+        payload.cardId = cardId;
+    }
+    const response = await apiClient.post<{ success: boolean; new_balance: number }>(`${WALLET_BASE}/top-up`, payload);
+    return response.data;
+};
+
+export const applyWalletCredit = async (reservationId: number, amount: number): Promise<{ success: boolean; new_balance: number }> => {
+    const response = await apiClient.post<{ success: boolean; new_balance: number }>(`${WALLET_BASE}/apply`, {
+        reservation_id: reservationId,
+        amount
+    });
+    return response.data;
+};
+
+export const addSavedCard = async (payload: CreateSavedCardInput): Promise<SavedCard> => {
+    const response = await apiClient.post<SavedCard>(`${WALLET_BASE}/cards`, payload);
     return response.data;
 };

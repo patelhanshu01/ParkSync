@@ -32,15 +32,23 @@ const NavigationPath: React.FC<NavigationPathProps> = ({ startPosition, endPosit
 
     const curve = useMemo(() => new THREE.CatmullRomCurve3(pathPoints), [pathPoints]);
 
+    const arrowPoints = useMemo(() => {
+        const points: THREE.Vector3[] = [];
+        for (let i = 0; i < pathPoints.length; i += 5) {
+            points.push(pathPoints[i]);
+        }
+        return points;
+    }, [pathPoints]);
+
     // Animation state
     const guideRef = React.useRef<THREE.Group>(null);
-    const [progress, setProgress] = React.useState(0);
+    const progressRef = React.useRef(0);
 
     useFrame((_, delta: number) => {
         if (guideRef.current) {
             // Move guide along curve
-            const newProgress = (progress + delta * 0.3) % 1;
-            setProgress(newProgress);
+            const newProgress = (progressRef.current + delta * 0.3) % 1;
+            progressRef.current = newProgress;
 
             const position = curve.getPointAt(newProgress);
             const tangent = curve.getTangentAt(newProgress);
@@ -78,7 +86,7 @@ const NavigationPath: React.FC<NavigationPathProps> = ({ startPosition, endPosit
             </group>
 
             {/* Directional Arrows (Painted on ground) */}
-            {pathPoints.filter((_, i) => i % 5 === 0).map((point, index) => (
+            {arrowPoints.map((point, index) => (
                 <group key={index} position={[point.x, 0.3, point.z]}>
                     <mesh rotation={[-Math.PI / 2, 0, Math.atan2(endPosition[0] - startPosition[0], endPosition[2] - startPosition[2])]}>
                         <planeGeometry args={[2, 2]} />

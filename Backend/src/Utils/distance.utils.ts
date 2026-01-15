@@ -31,14 +31,43 @@ export class DistanceUtils {
     static sortByDistance(
       userLat: number,
       userLng: number,
-      locations: Array<{ lat: number; lng: number; [key: string]: any }>
+      locations: Array<{ lat: number; lng: number; [key: string]: any }>,
+      options?: { limit?: number; inPlace?: boolean }
     ): typeof locations {
-      return locations
-        .map(loc => ({
-          ...loc,
-          distance: this.calculateDistance(userLat, userLng, loc.lat, loc.lng),
-        }))
-        .sort((a, b) => a.distance - b.distance);
+      const inPlace = !!options?.inPlace;
+      const limit = options?.limit;
+      const target = inPlace ? locations : new Array(locations.length);
+
+      for (let i = 0; i < locations.length; i++) {
+        const loc = locations[i];
+        const distance = this.calculateDistance(userLat, userLng, loc.lat, loc.lng);
+        if (inPlace) {
+          (loc as any).distance = distance;
+          (target as any)[i] = loc;
+        } else {
+          (target as any)[i] = { ...loc, distance };
+        }
+      }
+
+      if (limit && limit > 0 && limit < target.length) {
+        const top = new Array<any>(limit);
+        let size = 0;
+        for (let i = 0; i < target.length; i++) {
+          const item = (target as any)[i];
+          let pos = size;
+          while (pos > 0 && top[pos - 1].distance > item.distance) {
+            if (pos < limit) top[pos] = top[pos - 1];
+            pos -= 1;
+          }
+          if (pos < limit) {
+            top[pos] = item;
+            if (size < limit) size += 1;
+          }
+        }
+        return top.slice(0, size);
+      }
+
+      return target.sort((a: any, b: any) => a.distance - b.distance);
     }
   }
   

@@ -17,12 +17,15 @@ interface SearchBarProps {
     value: string;
     onChange: (value: string) => void;
     onSearch?: () => void;
+    compact?: boolean;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onSearch }) => {
+const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onSearch, compact = false }) => {
     const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
+    const debounceRef = useRef<number | null>(null);
+    const requestIdRef = useRef(0);
 
     useEffect(() => {
         const initService = () => {
@@ -35,28 +38,44 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onSearch }) => {
             initService();
         }
 
+        if (debounceRef.current) {
+            window.clearTimeout(debounceRef.current);
+            debounceRef.current = null;
+        }
+
         if (value.length > 2) {
             if (!autocompleteService.current) {
                 initService();
             }
 
             if (autocompleteService.current) {
-                autocompleteService.current.getPlacePredictions(
-                    { input: value, types: ['geocode', 'establishment'] },
-                    (predictions, status) => {
-                        if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
-                            setSuggestions(predictions);
-                            setShowSuggestions(true);
-                        } else {
-                            setSuggestions([]);
+                const requestId = ++requestIdRef.current;
+                debounceRef.current = window.setTimeout(() => {
+                    autocompleteService.current?.getPlacePredictions(
+                        { input: value, types: ['geocode', 'establishment'] },
+                        (predictions, status) => {
+                            if (requestId !== requestIdRef.current) return;
+                            if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+                                setSuggestions(predictions);
+                                setShowSuggestions(true);
+                            } else {
+                                setSuggestions([]);
+                            }
                         }
-                    }
-                );
+                    );
+                }, 250);
             }
         } else {
             setSuggestions([]);
             setShowSuggestions(false);
         }
+
+        return () => {
+            if (debounceRef.current) {
+                window.clearTimeout(debounceRef.current);
+                debounceRef.current = null;
+            }
+        };
     }, [value]);
 
     const handleSuggestionClick = (suggestion: string) => {
@@ -74,15 +93,20 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onSearch }) => {
         }
     };
 
+    const inputHeight = compact ? 44 : 56;
+    const inputFontSize = compact ? '0.95rem' : '1rem';
+    const iconPadding = compact ? '8px' : '10px';
+    const horizontalPadding = compact ? 1.5 : 2;
+
     return (
         <Box sx={{ position: 'relative', width: '100%' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', px: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', px: horizontalPadding }}>
                 <InputBase
                     sx={{
                         ml: 1,
                         flex: 1,
-                        height: 56,
-                        fontSize: '1rem',
+                        height: inputHeight,
+                        fontSize: inputFontSize,
                         color: '#ffffff',
                         '& ::placeholder': {
                             color: 'rgba(255, 255, 255, 0.6)',
@@ -97,8 +121,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onSearch }) => {
                     onBlur={() => {
                         setTimeout(() => setShowSuggestions(false), 300);
                     }}
+                    inputProps={{ 'aria-label': 'search parking locations' }}
                 />
-                <IconButton type="button" sx={{ p: '10px', color: '#00d4aa' }} aria-label="search" onClick={onSearch}>
+                <IconButton type="button" sx={{ p: iconPadding, color: '#00d4aa' }} aria-label="search" onClick={onSearch}>
                     <SearchIcon />
                 </IconButton>
             </Box>

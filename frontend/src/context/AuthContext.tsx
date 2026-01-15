@@ -1,5 +1,14 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { User, LoginAvailable, RegisterData, login as apiLogin, register as apiRegister, googleLogin as apiGoogleLogin, getCurrentUser } from '../api/authApi';
+import {
+    User,
+    LoginAvailable,
+    RegisterData,
+    AuthResponse,
+    login as apiLogin,
+    register as apiRegister,
+    googleLogin as apiGoogleLogin,
+    getCurrentUser
+} from '../api/authApi';
 
 interface AuthContextType {
     user: User | null;
@@ -9,6 +18,7 @@ interface AuthContextType {
     login: (credentials: LoginAvailable) => Promise<User>;
     googleLogin: (token: string) => Promise<User>;
     register: (data: RegisterData) => Promise<User>;
+    updateSession: (auth: AuthResponse) => void;
     logout: () => void;
     error: string | null;
 }
@@ -23,6 +33,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Initial check for existing token
     useEffect(() => {
+        let cancelled = false;
         const initAuth = async () => {
             if (token) {
                 try {
@@ -30,17 +41,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     // For now, we'll optimistically assume token is valid if we have user data stored
                     // Or fetch it:
                     const userData = await getCurrentUser();
+                    if (cancelled) return;
                     setUser(userData);
+                    if (userData.role !== 'admin') {
+                        localStorage.removeItem('admin_mode');
+                    }
                 } catch (err) {
-                    // Token invalid or expired
-                    console.error("Session expired", err);
-                    logout();
+                    if (cancelled) return;
+                    const status = (err as any)?.response?.status;
+                    if (status === 429) {
+                        setError('Too many requests. Please wait a moment and refresh.');
+                    } else {
+                        // Token invalid or expired
+                        console.error("Session expired", err);
+                        logout();
+                    }
                 }
             }
-            setLoading(false);
+            if (!cancelled) {
+                setLoading(false);
+            }
         };
 
         initAuth();
+        return () => {
+            cancelled = true;
+        };
     }, [token]);
 
     const login = async (credentials: LoginAvailable): Promise<User> => {
@@ -96,10 +122,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const updateSession = (auth: AuthResponse) => {
+        setToken(auth.token);
+        setUser(auth.user);
+        localStorage.setItem('token', auth.token);
+    };
+
     const logout = () => {
         setToken(null);
         setUser(null);
         localStorage.removeItem('token');
+        localStorage.removeItem('admin_mode');
     };
 
     return (
@@ -111,6 +144,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             login,
             googleLogin,
             register,
+            updateSession,
             logout,
             error
         }}>

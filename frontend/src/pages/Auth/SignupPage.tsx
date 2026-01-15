@@ -11,14 +11,13 @@ import {
     Link,
     InputAdornment,
     IconButton,
-    Switch,
-    FormControlLabel
+    Divider
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
-import { Divider } from '@mui/material';
+ 
 
 const SignupPage: React.FC = () => {
     const [name, setName] = useState('');
@@ -27,7 +26,6 @@ const SignupPage: React.FC = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [validationError, setValidationError] = useState<string | null>(null);
-    const [isAdmin, setIsAdmin] = useState(false);
 
     const { register, googleLogin, error } = useAuth();
     const navigate = useNavigate();
@@ -51,9 +49,9 @@ const SignupPage: React.FC = () => {
                 name,
                 email,
                 password,
-                role: isAdmin ? 'admin' : 'user'
+                role: 'user'
             });
-            navigate(isAdmin ? '/admin/dashboard' : '/');
+            navigate('/');
         } catch (err) {
             // Managed by AuthContext
         }
@@ -85,7 +83,7 @@ const SignupPage: React.FC = () => {
                         </Alert>
                     )}
 
-                    <Box component="form" onSubmit={handleSubmit} noValidate>
+                    <Box component="form" onSubmit={handleSubmit}>
                         <TextField
                             margin="normal"
                             required
@@ -146,17 +144,9 @@ const SignupPage: React.FC = () => {
                             onChange={(e) => setConfirmPassword(e.target.value)}
                         />
 
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={isAdmin}
-                                    onChange={(e) => setIsAdmin(e.target.checked)}
-                                    color="primary"
-                                />
-                            }
-                            label="Sign up as Admin"
-                            sx={{ mt: 1 }}
-                        />
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                            Want to become a host? Complete the host onboarding in the Host Dashboard after signup.
+                        </Typography>
 
                         <Button
                             type="submit"

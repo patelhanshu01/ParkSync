@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Container,
@@ -22,14 +22,20 @@ import AppleIcon from '@mui/icons-material/Apple';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import WalletDisplay from '../Components/WalletDisplay';
 import { ParkingLot, ParkingSpot } from '../types/Parking';
+import { Listing } from '../types/Listing';
 import { createReservation } from '../api/reservationApi';
 import { createPayment } from '../api/paymentApi';
+import { reserveListing } from '../api/listingApi';
+import { applyWalletCredit, getWalletDetails, SavedCard } from '../api/walletApi';
+import { useAuth } from '../context/AuthContext';
 
 const Payment: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const state = location.state as {
-        lot: ParkingLot;
+        lot?: ParkingLot;
+        listing?: Listing;
         selectedSpot?: ParkingSpot;
         duration: number;
         totalCost: number;
@@ -39,6 +45,13 @@ const Payment: React.FC = () => {
     const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple_google_pay' | 'wallet'>('card');
     const [walletAmount, setWalletAmount] = useState(0);
     const [processing, setProcessing] = useState(false);
+    const [contactName, setContactName] = useState(user?.name || '');
+    const [contactEmail, setContactEmail] = useState(user?.email || '');
+    const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+    const [savedCardsLoading, setSavedCardsLoading] = useState(true);
+    const [savedCardsError, setSavedCardsError] = useState<string | null>(null);
+    const [selectedSavedCardId, setSelectedSavedCardId] = useState<number | null>(null);
+    const savedCardsInitRef = useRef(false);
 
     const [cardDetails, setCardDetails] = useState({
         number: '',
@@ -48,8 +61,48 @@ const Payment: React.FC = () => {
     });
     const [validationError, setValidationError] = useState<string | null>(null);
     const [biometricAuthenticated, setBiometricAuthenticated] = useState(false);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    const { lot, selectedSpot, duration, totalCost, startTime } = state || { lot: {} as any, selectedSpot: undefined, duration: 0, totalCost: 0, startTime: undefined };
+    useEffect(() => {
+        if (!user) return;
+        if (!contactName) setContactName(user.name || '');
+        if (!contactEmail) setContactEmail(user.email || '');
+    }, [user, contactName, contactEmail]);
+
+    useEffect(() => {
+        let active = true;
+        const fetchSavedCards = async () => {
+            setSavedCardsLoading(true);
+            setSavedCardsError(null);
+            try {
+                const data = await getWalletDetails();
+                if (!active) return;
+                setSavedCards(data.savedCards ?? []);
+            } catch (err) {
+                if (!active) return;
+                setSavedCardsError('Unable to load saved cards.');
+            } finally {
+                if (active) setSavedCardsLoading(false);
+            }
+        };
+        fetchSavedCards();
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (savedCardsInitRef.current) return;
+        if (savedCards.length === 0) return;
+        const defaultCard = savedCards.find((card) => card.isDefault) || savedCards[0];
+        if (defaultCard) {
+            setSelectedSavedCardId(defaultCard.id);
+            savedCardsInitRef.current = true;
+        }
+    }, [savedCards]);
+
+    const { lot, listing, selectedSpot, duration, totalCost, startTime } = state || { lot: undefined, listing: undefined, selectedSpot: undefined, duration: 0, totalCost: 0, startTime: undefined };
+    const isListingBooking = !!listing && !lot;
     const amountAfterWallet = Math.max(0, totalCost - walletAmount);
 
     if (!state) {
@@ -70,8 +123,24 @@ const Payment: React.FC = () => {
 
     const handlePayment = async () => {
         setValidationError(null);
+        const trimmedName = contactName.trim();
+        const trimmedEmail = contactEmail.trim();
+
+        if (!trimmedName) {
+            setValidationError('Please enter a contact name.');
+            return;
+        }
+
+        if (!emailRegex.test(trimmedEmail)) {
+            setValidationError('Please enter a valid email address.');
+            return;
+        }
 
         if (paymentMethod === 'card') {
+            const usingSavedCard = selectedSavedCardId !== null;
+            if (savedCards.length > 0 && usingSavedCard) {
+                // Saved card selected; no manual validation needed.
+            } else {
             if (!cardDetails.number || !cardDetails.expiry || !cardDetails.cvc || !cardDetails.name) {
                 setValidationError('Please fill in all card details.');
                 return;
@@ -79,6 +148,7 @@ const Payment: React.FC = () => {
             if (cardDetails.number.replace(/\s/g, '').length < 16) {
                 setValidationError('Please enter a valid 16-digit card number.');
                 return;
+            }
             }
         }
 
@@ -96,30 +166,43 @@ const Payment: React.FC = () => {
             const reservationData = {
                 startTime: start.toISOString(),
                 endTime: end.toISOString(),
-                parkingLot: lot.id,
-                co2_estimated_g: lot.co2_impact?.estimated_g || 0,
+                parkingLot: lot?.id,
+                listing: listing ? { id: listing.id } : undefined,
+                co2_estimated_g: lot?.co2_impact?.estimated_g || 0,
                 spot: selectedSpot ? { id: selectedSpot.id } : undefined, // Link selected spot
+                contactName: trimmedName,
+                contactEmail: trimmedEmail,
             };
 
-            const newReservation = await createReservation(reservationData);
+            const newReservation = isListingBooking && listing?.id
+                ? (await reserveListing(listing.id, reservationData)).data
+                : await createReservation(reservationData);
 
-            // Create payment record linked to reservation
-            // Note: Backend endpoint expects: amount, method, reservation (ID)
-            await createPayment({
-                amount: amountAfterWallet > 0 ? amountAfterWallet : totalCost, // Track actual paid amount or total? Usually actual paid.
-                method: paymentMethod,
-                reservation: { id: newReservation.id }
-            });
+            const walletApplied = Math.min(walletAmount, totalCost);
+            if (walletApplied > 0) {
+                await applyWalletCredit(newReservation.id, walletApplied);
+            }
+
+            const methodForCard = paymentMethod === 'card' && selectedSavedCardId ? 'saved_card' : paymentMethod;
+            const shouldCreatePayment = amountAfterWallet > 0 || walletApplied > 0;
+            if (shouldCreatePayment) {
+                await createPayment({
+                    amount: amountAfterWallet > 0 ? amountAfterWallet : walletApplied,
+                    method: amountAfterWallet > 0 ? methodForCard : 'wallet',
+                    reservation: { id: newReservation.id }
+                });
+            }
 
             // Navigate to success
             navigate('/payment-success', {
                 state: {
                     lot,
+                    listing,
                     selectedSpot,
-                duration,
-                totalCost,
-                reservationId: newReservation.id.toString()
-            }
+                    duration,
+                    totalCost,
+                    reservationId: newReservation.id.toString()
+                }
             });
 
         } catch (error) {
@@ -144,6 +227,18 @@ const Payment: React.FC = () => {
         setCardDetails(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleSavedCardChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const value = event.target.value;
+        if (value === 'new') {
+            setSelectedSavedCardId(null);
+            return;
+        }
+        const nextId = Number(value);
+        if (Number.isFinite(nextId)) {
+            setSelectedSavedCardId(nextId);
+        }
+    };
+
     return (
         <Container maxWidth="md" sx={{ py: 3 }}>
             <Button
@@ -166,19 +261,34 @@ const Payment: React.FC = () => {
                         Booking Summary
                     </Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body2" color="text.secondary">Parking Lot:</Typography>
-                            <Typography variant="body2" fontWeight={600}>{lot.name}</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body2" color="text.secondary">Location:</Typography>
-                            <Typography variant="body2">{lot.location}</Typography>
-                        </Box>
-                        {selectedSpot && (
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography variant="body2" color="text.secondary">Spot:</Typography>
-                                <Typography variant="body2" fontWeight={600}>{selectedSpot.spot_number}</Typography>
-                            </Box>
+                        {isListingBooking ? (
+                            <>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" color="text.secondary">Private Listing:</Typography>
+                                    <Typography variant="body2" fontWeight={600}>{listing?.title}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" color="text.secondary">Address:</Typography>
+                                    <Typography variant="body2">{listing?.address || listing?.location}</Typography>
+                                </Box>
+                            </>
+                        ) : (
+                            <>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" color="text.secondary">Parking Lot:</Typography>
+                                    <Typography variant="body2" fontWeight={600}>{lot?.name}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" color="text.secondary">Location:</Typography>
+                                    <Typography variant="body2">{lot?.location}</Typography>
+                                </Box>
+                                {selectedSpot && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <Typography variant="body2" color="text.secondary">Spot:</Typography>
+                                        <Typography variant="body2" fontWeight={600}>{selectedSpot.spot_number}</Typography>
+                                    </Box>
+                                )}
+                            </>
                         )}
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2" color="text.secondary">Duration:</Typography>
@@ -186,13 +296,13 @@ const Payment: React.FC = () => {
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2" color="text.secondary">Rate:</Typography>
-                            <Typography variant="body2">${lot.pricePerHour}/hr</Typography>
+                            <Typography variant="body2">${(isListingBooking ? listing?.pricePerHour : lot?.pricePerHour) || 0}/hr</Typography>
                         </Box>
-                        {lot.co2_impact && (
+                        {lot?.co2_impact && !isListingBooking && (
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <Typography variant="body2" color="text.secondary">CO₂ Impact:</Typography>
                                 <Typography variant="body2" color="success.main" fontWeight={600}>
-                                    {Number(lot.co2_impact.estimated_g).toFixed(0)}g ({Number(lot.co2_impact.savings_pct).toFixed(0)}% savings) 🌱
+                                    {Number(lot?.co2_impact?.estimated_g || 0).toFixed(0)}g ({Number(lot?.co2_impact?.savings_pct || 0).toFixed(0)}% savings) 🌱
                                 </Typography>
                             </Box>
                         )}
@@ -207,6 +317,34 @@ const Payment: React.FC = () => {
 
             {/* Wallet */}
             <WalletDisplay showTransactions={false} onApplyCredit={handleApplyWalletCredit} />
+
+            <Card elevation={2} sx={{ mb: 3 }}>
+                <CardContent>
+                    <Typography variant="h6" gutterBottom fontWeight={600}>
+                        Contact Details
+                    </Typography>
+                    <Box sx={{ display: 'grid', gap: 2 }}>
+                        <TextField
+                            label="Full Name"
+                            value={contactName}
+                            onChange={(e) => setContactName(e.target.value)}
+                            fullWidth
+                            placeholder="Jane Doe"
+                        />
+                        <TextField
+                            label="Email Address"
+                            value={contactEmail}
+                            onChange={(e) => setContactEmail(e.target.value)}
+                            fullWidth
+                            placeholder="jane@example.com"
+                            type="email"
+                        />
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        We'll use this for reservation reminders.
+                    </Typography>
+                </CardContent>
+            </Card>
 
             {/* Cost Breakdown with Wallet */}
             {walletAmount > 0 && (
@@ -254,50 +392,97 @@ const Payment: React.FC = () => {
 
                                     {paymentMethod === 'card' && (
                                         <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                            <TextField
-                                                label="Cardholder Name"
-                                                name="name"
-                                                value={cardDetails.name}
-                                                onChange={handleCardChange}
-                                                fullWidth
-                                                placeholder="John Doe"
-                                            />
-                                            <TextField
-                                                label="Card Number"
-                                                name="number"
-                                                value={cardDetails.number}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim();
-                                                    setCardDetails(prev => ({ ...prev, number: val }));
-                                                }}
-                                                fullWidth
-                                                placeholder="XXXX XXXX XXXX XXXX"
-                                                inputProps={{ maxLength: 19 }}
-                                            />
-                                            <Box sx={{ display: 'flex', gap: 2 }}>
-                                                <TextField
-                                                    label="Expiry (MM/YY)"
-                                                    name="expiry"
-                                                    value={cardDetails.expiry}
-                                                    onChange={(e) => {
-                                                        let val = e.target.value.replace(/\D/g, '');
-                                                        if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
-                                                        setCardDetails(prev => ({ ...prev, expiry: val }));
-                                                    }}
-                                                    fullWidth
-                                                    placeholder="MM/YY"
-                                                    inputProps={{ maxLength: 5 }}
-                                                />
-                                                <TextField
-                                                    label="CVV"
-                                                    name="cvc"
-                                                    value={cardDetails.cvc}
-                                                    onChange={handleCardChange}
-                                                    fullWidth
-                                                    placeholder="123"
-                                                    inputProps={{ maxLength: 3 }}
-                                                />
-                                            </Box>
+                                            {savedCardsLoading && (
+                                                <Typography variant="caption" color="text.secondary">
+                                                    Loading saved cards...
+                                                </Typography>
+                                            )}
+                                            {savedCardsError && (
+                                                <Typography variant="caption" color="error">
+                                                    {savedCardsError}
+                                                </Typography>
+                                            )}
+                                            {savedCards.length > 0 && (
+                                                <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
+                                                    <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                                                        Saved cards
+                                                    </Typography>
+                                                    <FormControl component="fieldset" fullWidth>
+                                                        <RadioGroup
+                                                            value={selectedSavedCardId !== null ? String(selectedSavedCardId) : 'new'}
+                                                            onChange={handleSavedCardChange}
+                                                        >
+                                                            {savedCards.map((card) => (
+                                                                <FormControlLabel
+                                                                    key={card.id}
+                                                                    value={String(card.id)}
+                                                                    control={<Radio />}
+                                                                    label={
+                                                                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                                                            <Typography fontWeight={600}>
+                                                                                {card.brand} **** {card.last4}
+                                                                            </Typography>
+                                                                            <Typography variant="caption" color="text.secondary">
+                                                                                Expires {card.expMonth.toString().padStart(2, '0')}/{card.expYear}
+                                                                            </Typography>
+                                                                        </Box>
+                                                                    }
+                                                                />
+                                                            ))}
+                                                            <FormControlLabel value="new" control={<Radio />} label="Use a different card" />
+                                                        </RadioGroup>
+                                                    </FormControl>
+                                                </Box>
+                                            )}
+
+                                            {(savedCards.length === 0 || selectedSavedCardId === null) && (
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                    <TextField
+                                                        label="Cardholder Name"
+                                                        name="name"
+                                                        value={cardDetails.name}
+                                                        onChange={handleCardChange}
+                                                        fullWidth
+                                                        placeholder="John Doe"
+                                                    />
+                                                    <TextField
+                                                        label="Card Number"
+                                                        name="number"
+                                                        value={cardDetails.number}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim();
+                                                            setCardDetails(prev => ({ ...prev, number: val }));
+                                                        }}
+                                                        fullWidth
+                                                        placeholder="XXXX XXXX XXXX XXXX"
+                                                        inputProps={{ maxLength: 19 }}
+                                                    />
+                                                    <Box sx={{ display: 'flex', gap: 2 }}>
+                                                        <TextField
+                                                            label="Expiry (MM/YY)"
+                                                            name="expiry"
+                                                            value={cardDetails.expiry}
+                                                            onChange={(e) => {
+                                                                let val = e.target.value.replace(/\D/g, '');
+                                                                if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
+                                                                setCardDetails(prev => ({ ...prev, expiry: val }));
+                                                            }}
+                                                            fullWidth
+                                                            placeholder="MM/YY"
+                                                            inputProps={{ maxLength: 5 }}
+                                                        />
+                                                        <TextField
+                                                            label="CVV"
+                                                            name="cvc"
+                                                            value={cardDetails.cvc}
+                                                            onChange={handleCardChange}
+                                                            fullWidth
+                                                            placeholder="123"
+                                                            inputProps={{ maxLength: 3 }}
+                                                        />
+                                                    </Box>
+                                                </Box>
+                                            )}
                                         </Box>
                                     )}
                                 </Paper>

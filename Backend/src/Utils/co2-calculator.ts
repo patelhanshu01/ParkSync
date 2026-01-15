@@ -31,18 +31,32 @@ export interface CO2Result {
       return ((maxCO2 - optionCO2) / maxCO2) * 100;
     }
   
-    rankByEmissions(options: Array<{ id: number; distanceKm: number; circlingKm?: number }>): CO2Result[] {
-      const results = options.map(opt => ({
-        id: opt.id,
-        co2Grams: this.calculateICEEmissions(opt.distanceKm, opt.circlingKm || 0.5),
-      }));
-  
-      const maxCO2 = Math.max(...results.map(r => r.co2Grams));
-  
-      return results.map(r => ({
-        co2Grams: r.co2Grams,
-        savingsPercent: this.calculateSavings(r.co2Grams, maxCO2),
-        isEcoChoice: r.co2Grams === Math.min(...results.map(x => x.co2Grams)),
-      }));
+  rankByEmissions(options: Array<{ id: number; distanceKm: number; circlingKm?: number }>): CO2Result[] {
+      const count = options.length;
+      if (count === 0) return [];
+
+      const co2ByIndex = new Array<number>(count);
+      let maxCO2 = -Infinity;
+      let minCO2 = Infinity;
+
+      for (let i = 0; i < count; i++) {
+        const opt = options[i];
+        const co2 = this.calculateICEEmissions(opt.distanceKm, opt.circlingKm ?? 0.5);
+        co2ByIndex[i] = co2;
+        if (co2 > maxCO2) maxCO2 = co2;
+        if (co2 < minCO2) minCO2 = co2;
+      }
+
+      const results = new Array<CO2Result>(count);
+      for (let i = 0; i < count; i++) {
+        const co2 = co2ByIndex[i];
+        results[i] = {
+          co2Grams: co2,
+          savingsPercent: this.calculateSavings(co2, maxCO2),
+          isEcoChoice: co2 === minCO2,
+        };
+      }
+
+      return results;
     }
   }

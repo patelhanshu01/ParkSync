@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ParkingSpot } from '../types/Parking';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
@@ -9,6 +9,7 @@ interface SpotVisualizationProps {
     spots: ParkingSpot[];
     onSpotClick?: (spot: ParkingSpot) => void;
     selectedSpotId?: number;
+    pricePerHour?: number;
 }
 
 const BoltIcon: React.FC = () => (
@@ -36,11 +37,12 @@ const SpotItem: React.FC<{
     // Calculate vacancy time for occupied spots
     const getVacancyInfo = () => {
         if (spot.status === 'occupied' && spot.nextReservation) {
-            const endTime = new Date(spot.nextReservation.endTime);
-            const now = new Date();
+            const nowMs = Date.now();
+            const endMs = Date.parse(spot.nextReservation.endTime);
 
-            if (endTime > now) {
-                const minutesRemaining = Math.ceil((endTime.getTime() - now.getTime()) / 60000);
+            if (endMs > nowMs) {
+                const minutesRemaining = Math.ceil((endMs - nowMs) / 60000);
+                const endTime = new Date(endMs);
 
                 if (minutesRemaining < 60) {
                     return {
@@ -296,21 +298,41 @@ const LegendItem: React.FC<{ color: string; label: string; icon?: React.ReactNod
     </div>
 );
 
-const SpotVisualization: React.FC<SpotVisualizationProps> = ({ spots, onSpotClick, selectedSpotId }) => {
-    // 1. DEDUPLICATE SPOTS FIRST (before any hooks or returns)
-    //    We need to ensure we have a stable list to derive state from.
-    //    Using a ref or just memoizing could work, but since `spots` prop changes,
-    //    we can just process it.
-    const uniqueSpots = spots ? Array.from(new Map(spots.map(spot => [spot.spot_number, spot])).values()) : [];
+const SpotVisualization: React.FC<SpotVisualizationProps> = ({ spots, onSpotClick, selectedSpotId, pricePerHour }) => {
+    const { sortedByFloor, floors } = useMemo(() => {
+        if (!spots || spots.length === 0) {
+            return {
+                sortedByFloor: {} as Record<number, ParkingSpot[]>,
+                floors: [] as number[]
+            };
+        }
 
-    const groupedByFloor = uniqueSpots.reduce((acc, spot) => {
-        const floor = spot.floor_level || 1;
-        if (!acc[floor]) acc[floor] = [];
-        acc[floor].push(spot);
-        return acc;
-    }, {} as Record<number, ParkingSpot[]>);
+        const byNumber = new Map<string, ParkingSpot>();
+        for (let i = 0; i < spots.length; i++) {
+            byNumber.set(spots[i].spot_number, spots[i]);
+        }
 
-    const floors = Object.keys(groupedByFloor).map(Number).sort((a, b) => a - b);
+        const grouped: Record<number, ParkingSpot[]> = {};
+        const floorSet = new Set<number>();
+        for (const spot of byNumber.values()) {
+            const floor = spot.floor_level || 1;
+            if (!grouped[floor]) grouped[floor] = [];
+            grouped[floor].push(spot);
+            floorSet.add(floor);
+        }
+
+        const floors = Array.from(floorSet);
+        floors.sort((a, b) => a - b);
+
+        for (let i = 0; i < floors.length; i++) {
+            const floor = floors[i];
+            grouped[floor].sort((a, b) =>
+                a.spot_number.localeCompare(b.spot_number, undefined, { numeric: true, sensitivity: 'base' })
+            );
+        }
+
+        return { sortedByFloor: grouped, floors };
+    }, [spots]);
     const hasMultipleFloors = floors.length > 1;
 
     // 2. DECLARE ALL HOOKS UNCONDITIONALLY
@@ -323,6 +345,47 @@ const SpotVisualization: React.FC<SpotVisualizationProps> = ({ spots, onSpotClic
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [floors.join(','), activeFloor]);
+
+    const displaySpots = useMemo(() => {
+        return sortedByFloor[activeFloor] || [];
+    }, [sortedByFloor, activeFloor]);
+
+    const selectedSpot = useMemo(() => {
+        if (selectedSpotId == null) return undefined;
+        return displaySpots.find(s => s.id === selectedSpotId);
+    }, [displaySpots, selectedSpotId]);
+    const rawRate = selectedSpot
+        ? (selectedSpot as any).pricePerHour ?? (selectedSpot as any).price ?? pricePerHour
+        : pricePerHour;
+    const hourlyRate = rawRate !== undefined && rawRate !== null && !Number.isNaN(Number(rawRate))
+        ? Number(rawRate)
+        : null;
+
+    const currentFloorIndex = floors.findIndex(f => f === activeFloor);
+    const prevFloor = hasMultipleFloors && currentFloorIndex > 0 ? floors[currentFloorIndex - 1] : null;
+    const nextFloor = hasMultipleFloors && currentFloorIndex < floors.length - 1 ? floors[currentFloorIndex + 1] : null;
+
+    const toOrdinal = (n: number) => {
+        const suffix = (n % 10 === 1 && n % 100 !== 11) ? 'st'
+            : (n % 10 === 2 && n % 100 !== 12) ? 'nd'
+                : (n % 10 === 3 && n % 100 !== 13) ? 'rd'
+                    : 'th';
+        return `${n}${suffix}`;
+    };
+
+    // Split into rows of 2 (left and right columns) for sequential numbering
+    const rows = useMemo(() => {
+        const rowCount = Math.ceil(displaySpots.length / 2);
+        const nextRows: Array<{ left: ParkingSpot; right: ParkingSpot | null }> = new Array(rowCount);
+        let idx = 0;
+        for (let i = 0; i < displaySpots.length; i += 2) {
+            nextRows[idx++] = {
+                left: displaySpots[i],
+                right: displaySpots[i + 1] || null
+            };
+        }
+        return nextRows;
+    }, [displaySpots]);
 
     // 3. NOW HANDLE EARLY RETURNS (Conditional Rendering)
     if (!spots || spots.length === 0) {
@@ -338,36 +401,6 @@ const SpotVisualization: React.FC<SpotVisualizationProps> = ({ spots, onSpotClic
                 <div style={{ fontSize: '14px', opacity: 0.6 }}>Please check back later or select a different location</div>
             </div>
         );
-    }
-
-    const displaySpots = groupedByFloor[activeFloor] || [];
-
-    // Sort spots alphanumerically (A1, A2, A10, B1)
-    displaySpots.sort((a, b) => {
-        return a.spot_number.localeCompare(b.spot_number, undefined, { numeric: true, sensitivity: 'base' });
-    });
-
-    const selectedSpot = displaySpots.find(s => s.id === selectedSpotId);
-
-    const currentFloorIndex = floors.findIndex(f => f === activeFloor);
-    const prevFloor = hasMultipleFloors && currentFloorIndex > 0 ? floors[currentFloorIndex - 1] : null;
-    const nextFloor = hasMultipleFloors && currentFloorIndex < floors.length - 1 ? floors[currentFloorIndex + 1] : null;
-
-    const toOrdinal = (n: number) => {
-        const suffix = (n % 10 === 1 && n % 100 !== 11) ? 'st'
-            : (n % 10 === 2 && n % 100 !== 12) ? 'nd'
-                : (n % 10 === 3 && n % 100 !== 13) ? 'rd'
-                    : 'th';
-        return `${n}${suffix}`;
-    };
-
-    // Split into rows of 2 (left and right columns) for sequential numbering
-    const rows: Array<{ left: ParkingSpot; right: ParkingSpot | null }> = [];
-    for (let i = 0; i < displaySpots.length; i += 2) {
-        rows.push({
-            left: displaySpots[i],
-            right: displaySpots[i + 1] || null
-        });
     }
 
     return (
@@ -651,7 +684,8 @@ const SpotVisualization: React.FC<SpotVisualizationProps> = ({ spots, onSpotClic
                         color: '#fff',
                         textShadow: '0 2px 4px rgba(0,0,0,0.2)'
                     }}>
-                        $3.50<span style={{ fontSize: '14px', fontWeight: 'normal', opacity: 0.8 }}>/hr</span>
+                        {hourlyRate !== null ? `$${hourlyRate.toFixed(2)}` : '—'}
+                        <span style={{ fontSize: '14px', fontWeight: 'normal', opacity: 0.8 }}>/hr</span>
                     </div>
                 </div>
             )}

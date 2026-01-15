@@ -1,10 +1,10 @@
-import axios from 'axios';
+import apiClient from './client';
 import { CO2Calculation, CO2Impact } from '../types/CO2';
 
-const API = 'http://localhost:3000/api/co2';
+const CO2_BASE = '/co2';
 
 export const calculateCO2Score = (data: CO2Calculation) =>
-    axios.post<CO2Impact>(`${API}/score`, data);
+    apiClient.post<CO2Impact>(`${CO2_BASE}/score`, data);
 
 export const getCO2Comparison = (lotIds: number[]) =>
-    axios.post<{ [key: number]: CO2Impact }>(`${API}/compare`, { lot_ids: lotIds });
+    apiClient.post<{ [key: number]: CO2Impact }>(`${CO2_BASE}/compare`, { lot_ids: lotIds });

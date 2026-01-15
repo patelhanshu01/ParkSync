@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { keyframes } from '@emotion/react';
 import {
     Card,
@@ -21,7 +21,7 @@ import EcoBadge from './badges/EcoBadge';
 
 interface ParkingLotCardProps {
     parkingLot: ParkingLot;
-    onClick: (id: number) => void;
+    onClick: (lot: ParkingLot) => void;
     isCheapest?: boolean;
     isClosest?: boolean;
 }
@@ -31,7 +31,47 @@ const fadeInUp = keyframes`
   100% { opacity: 1; transform: translateY(0); }
 `;
 
+const FALLBACK_IMAGES = [
+    '/mock-images/parking_lot_1.png',
+    '/mock-images/parking_lot_2.png',
+    '/mock-images/parking_lot_3.png',
+    '/mock-images/parking_lot_4.png',
+    '/mock-images/parking_lot_5.png'
+];
+
+const UNSPLASH_FALLBACKS = [
+    'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1470224114660-3f6686c562eb?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1526626607727-42c162f7ab06?auto=format&fit=crop&w=800&q=80'
+];
+
 const ParkingLotCard: React.FC<ParkingLotCardProps> = ({ parkingLot, onClick, isCheapest, isClosest }) => {
+    const fallbackIndex = Number.isFinite(parkingLot.id)
+        ? Math.abs(Number(parkingLot.id)) % FALLBACK_IMAGES.length
+        : 0;
+    const fallbackImage = FALLBACK_IMAGES[fallbackIndex];
+    const lat = Number(parkingLot.latitude);
+    const lng = Number(parkingLot.longitude);
+    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+    const mapKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+    const streetViewUrl = hasCoords && mapKey
+        ? `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${lat},${lng}&fov=80&pitch=0&key=${mapKey}`
+        : null;
+    const rawImageUrl = typeof parkingLot.imageUrl === 'string' ? parkingLot.imageUrl : null;
+    const isProxyPhoto = !!rawImageUrl && rawImageUrl.includes('/api/parking/photo');
+    const isValidImageUrl = !!rawImageUrl && (/^https?:\/\//i.test(rawImageUrl) || rawImageUrl.startsWith('/'));
+    const isGenericFallback = isValidImageUrl && (UNSPLASH_FALLBACKS.includes(rawImageUrl) || isProxyPhoto);
+    const preferredImage = isGenericFallback && streetViewUrl
+        ? streetViewUrl
+        : (isValidImageUrl && !isProxyPhoto ? rawImageUrl : null);
+    const initialImageUrl = preferredImage || streetViewUrl || fallbackImage;
+    const [resolvedImageUrl, setResolvedImageUrl] = useState(initialImageUrl);
+
+    useEffect(() => {
+        setResolvedImageUrl(initialImageUrl);
+    }, [initialImageUrl]);
 
     const badges = [];
     if (isCheapest) badges.push({ label: 'Cheapest', color: 'success' as const });
@@ -55,23 +95,30 @@ const ParkingLotCard: React.FC<ParkingLotCardProps> = ({ parkingLot, onClick, is
                     boxShadow: '0 12px 24px rgba(0,0,0,0.1)',
                 }
             }}
-            onClick={() => parkingLot.id && onClick(parkingLot.id)}
+            onClick={() => onClick(parkingLot)}
         >
-            {parkingLot.imageUrl && (
-                <CardMedia
-                    component="img"
-                    height="140"
-                    image={parkingLot.imageUrl}
-                    alt={parkingLot.name}
-                    sx={{
-                        objectFit: 'cover',
-                        transition: 'transform 0.3s ease-in-out',
-                        '&:hover': {
-                            transform: 'scale(1.05)'
-                        }
-                    }}
-                />
-            )}
+            <CardMedia
+                component="img"
+                height="140"
+                image={resolvedImageUrl}
+                alt={parkingLot.name}
+                onError={() => {
+                    if (streetViewUrl && resolvedImageUrl !== streetViewUrl) {
+                        setResolvedImageUrl(streetViewUrl);
+                        return;
+                    }
+                    if (resolvedImageUrl !== fallbackImage) {
+                        setResolvedImageUrl(fallbackImage);
+                    }
+                }}
+                sx={{
+                    objectFit: 'cover',
+                    transition: 'transform 0.3s ease-in-out',
+                    '&:hover': {
+                        transform: 'scale(1.05)'
+                    }
+                }}
+            />
             <CardContent sx={{ flexGrow: 1, p: 2, '&:last-child': { pb: 2 } }}>
                 {/* Header */}
                 <Box sx={{ mb: 1.5 }}>
