@@ -37,3 +37,7 @@ frontend/build/
 
 # Misc
 .DS_Store
+
+# local session files
+*.session.sql
+*local.session.sql
